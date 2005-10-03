@@ -1,0 +1,19 @@
+README
+MANIFEST
+Makefile.PL
+typemap
+URPM.xs
+URPM.pm
+URPM/Build.pm
+URPM/Query.pm
+URPM/Resolve.pm
+URPM/Signature.pm
+t/00prepare.t
+t/fatal.t
+t/parse.t
+t/rpmdb.t
+t/synthesis.t
+ChangeLog
+perl-URPM.spec
+META.yml                                 Module meta-data (added by MakeMaker)
+test-rpm.spec
