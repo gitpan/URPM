@@ -3,7 +3,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.93 2005/09/14 13:17:20 othauvin Exp $
+ * $Id: URPM.xs,v 1.94 2005/10/10 18:21:40 rgarciasuarez Exp $
  * 
  */
 
@@ -2942,7 +2942,7 @@ Trans_run(trans, data, ...)
       } else if (!memcmp(s, "delta", 5))
 	td.min_delta = SvIV(ST(i+1));
     } else if (len == 6 && !memcmp(s, "nosize", 6)) {
-      if (SvIV(ST(i+1))) probFilter |= RPMPROB_FILTER_DISKSPACE;
+      if (SvIV(ST(i+1))) probFilter |= (RPMPROB_FILTER_DISKSPACE|RPMPROB_FILTER_DISKNODES);
     } else if (len == 9 && !memcmp(s, "noscripts", 9)) {
       if (SvIV(ST(i+1))) transFlags |= (RPMTRANS_FLAG_NOSCRIPTS |
 				        RPMTRANS_FLAG_NOPRE |

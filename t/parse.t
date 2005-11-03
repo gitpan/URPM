@@ -1,10 +1,11 @@
 #!/usr/bin/perl
 
-# $Id: parse.t,v 1.10 2005/10/03 09:17:43 rgarciasuarez Exp $
+# $Id: parse.t,v 1.12 2005/10/28 14:10:21 rgarciasuarez Exp $
 
-use strict ;
-use warnings ;
+use strict;
+use warnings;
 use Test::More tests => 24;
+use MDV::Packdrakeng;
 use URPM;
 use URPM::Build;
 use URPM::Query;
@@ -50,7 +51,6 @@ ok(URPM::rpmvercmp("0:1-1mdk",   "1-1mdk") ==  -1, "Same value, epoch 0 on left 
 ok(URPM::rpmvercmp("1-1mdk",     "1-2mdk") == -1, "Right value win = -1");
 ok(URPM::rpmvercmp("1-2mdk",     "1-1mdk") ==  1, "Left value win = 1");
 ok(URPM::rpmvercmp("1:1-1mdk", "2:1-1mdk") == -1, "epoch 1 vs 2 = -1");
-
 
 {
     open(my $hdfh, "zcat hdlist.cz 2>/dev/null |") or die $!;

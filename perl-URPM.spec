@@ -1,11 +1,11 @@
 # Do not edit this spec from src.rpm
-# This spec is part of Mandrakesoft's cvs
+# This spec lives in Mandriva's cvs
 
-# $Id: perl-URPM.spec,v 1.181 2005/10/03 09:25:42 rgarciasuarez Exp $
+# $Id: perl-URPM.spec,v 1.182 2005/10/04 12:00:27 rgarciasuarez Exp $
 
 %define name perl-URPM
 %define real_name URPM
-%define version 1.28
+%define version 1.29
 %define release %mkrel 1
 
 %define group %(perl -e 'printf "%%s\\n", "%_vendor" =~ /\\bmandr/i ? "Development/Perl" : "Applications/CPAN"')
@@ -13,7 +13,6 @@
 
 %{expand:%%define compat_makeinstall_std %(perl -e 'printf "%%s\n", "%{?makeinstall_std:1}" ? "%%makeinstall_std" : "%%{__make} install PREFIX=%%{buildroot}%%{_prefix}"')}
 %{expand:%%define compat_perl_vendorarch %(perl -MConfig -e 'printf "%%s\n", "%{?perl_vendorarch:1}" ? "%%{perl_vendorarch}" : "$Config{installvendorarch}"')}
-%{expand:%%define buildreq_perl_devel %%(perl -e 'printf "%%s\\n", "%_vendor" =~ /\\bmandr/i ? "perl-devel" : "perl"')}
 %{expand:%%define real_release %%(perl -e 'printf "%%s\\n", ("%_vendor" !~ /\\bmandr/i && ("%release" =~ /(.*?)mdk/)[0] || "%release")')}
 
 Summary:	URPM module for perl
@@ -24,9 +23,11 @@ License:	GPL or Artistic
 Group:		%{group}
 Source:		%{real_name}-%{version}.tar.bz2
 URL:		http://cvs.mandriva.com/cgi-bin/cvsweb.cgi/soft/perl-URPM
-BuildRequires:	%{buildreq_perl_devel} rpm-devel >= 4.2.3 bzip2-devel perl-devel
-Requires:	rpm >= %{rpm_version}, bzip2 >= 1.0
-Requires:	packdrake >= 5.0.2
+BuildRequires:	perl%{?mdkversion:-devel}
+BuildRequires:	rpm-devel >= 4.2.3
+Requires:	rpm >= %{rpm_version}
+Requires:	bzip2 >= 1.0
+Requires:	perl(MDV::Packdrakeng)
 Requires:	perl-base >= 2:5.8.7
 Provides:	perl(URPM::Build) = %{version}-%{release}
 Provides:	perl(URPM::Resolve) = %{version}-%{release}
@@ -63,6 +64,10 @@ hdlist files and manage them in memory.
 %{compat_perl_vendorarch}/auto/URPM/URPM.so
 
 %changelog
+* Wed Nov 02 2005 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.29-1mdk
+- Don't require packdrake, use MDV::Packdrakeng instead
+- Support for --ignoresize
+
 * Mon Oct 03 2005 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.28-1mdk
 - add some options to parse_rpm (nomd5, nopayload) (Olivier Thauvin)
 - Build process cleanup
