@@ -10,7 +10,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '1.29';
+our $VERSION = '1.30';
 
 URPM->bootstrap($VERSION);
 
@@ -168,6 +168,22 @@ sub add_macro {
 package URPM::Package;
 our @ISA = qw(); # help perl_checker
 
+#- debug help for urpmi
+sub dump_flags {
+    my ($pkg) = @_;
+    <<EODUMP;
+available:	  ${\($pkg->flag_available)}
+base:		  ${\($pkg->flag_base)}
+disable_obsolete: ${\($pkg->flag_disable_obsolete)}
+installed:	  ${\($pkg->flag_installed)}
+requested:	  ${\($pkg->flag_requested)}
+required:	  ${\($pkg->flag_required)}
+selected:	  ${\($pkg->flag_selected)}
+skip:		  ${\($pkg->flag_skip)}
+upgrade:	  ${\($pkg->flag_upgrade)}
+EODUMP
+}
+
 package URPM::Transaction;
 our @ISA = qw(); # help perl_checker
 
@@ -248,6 +264,9 @@ where epoch, version and release are RPM-style version numbers.
 If the optional parameter $nopromoteepoch is true, and if the 2nd range has no
 epoch while the first one has one, then the 2nd range is assumed to have an
 epoch C<== 0>.
+
+B<Warning>: $nopromoteepoch actually defaults to 1, so if you're going to
+pass a variable, make sure undef is treated like 1, not 0.
 
 =item $urpm->parse_synthesis($file, [ callback => sub {...} ])
 

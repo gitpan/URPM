@@ -1,6 +1,6 @@
 package URPM;
 
-# $Id: Resolve.pm,v 1.112 2005/09/12 15:13:53 rgarciasuarez Exp $
+# $Id: Resolve.pm,v 1.113 2005/12/07 16:48:31 rgarciasuarez Exp $
 
 use strict;
 
@@ -23,6 +23,7 @@ sub min { my $n = shift; $_ < $n and $n = $_ foreach @_; $n }
 sub find_candidate_packages {
     my ($urpm, $dep, %options) = @_;
     my %packages;
+    $options{nopromoteepoch} = 1 unless defined $options{nopromoteepoch};
 
     foreach (split /\|/, $dep) {
 	if (/^\d+$/) {
@@ -184,6 +185,7 @@ sub sort_package_result { $b->compare_pkg($a) || $a->id <=> $b->id }
 sub unsatisfied_requires {
     my ($urpm, $db, $state, $pkg, %options) = @_;
     my %properties;
+    $options{nopromoteepoch} = 1 unless defined $options{nopromoteepoch};
 
     #- all requires should be satisfied according to selected packages or installed packages,
     #- or the package itself.

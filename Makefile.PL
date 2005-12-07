@@ -20,6 +20,7 @@ my $version = `LC_ALL=C $rpm_path --version`;
 $version =~ s/RPM version //;
 $version =~ /^(?:4\.[2-9]|[5-9]|\d{2})/ 
     or die "Unable to build URPM with too old (or undetected) rpm version $version\n";
+print "Found RPM version $version\n";
 
 # directory where to build an rpm of this
 my $rpmtopdir = `$rpm_path --eval '%{_topdir}'`;
@@ -53,7 +54,7 @@ WriteMakefile(
     CCFLAGS	=> '-Wall',
     OPTIMIZE	=> '-O3 -fomit-frame-pointer -fno-exceptions -pipe -s -ffast-math -fexpensive-optimizations',
     VERSION_FROM	=> 'URPM.pm',
-    LIBS	=> [ '-lrpm -lrpmio -lrpmdb -lpopt -lz -lbz2' ],
+    LIBS	=> [ '-lrpm -lrpmio -lrpmdb -lpopt -lz' ],
     INC		=> '-I/usr/include/rpm',
     dist	=> { COMPRESS => "bzip2", SUFFIX => ".bz2" },
     realclean	=> { FILES => "t/RPMS/noarch/*" },

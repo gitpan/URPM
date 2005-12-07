@@ -3,7 +3,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.94 2005/10/10 18:21:40 rgarciasuarez Exp $
+ * $Id: URPM.xs,v 1.97 2005/12/01 13:57:19 rgarciasuarez Exp $
  * 
  */
 
@@ -438,8 +438,8 @@ callback_list_str_overlap(char *s, int slen, char *name, int_32 flags, char *evr
   int result = 0;
   char *eos = NULL;
   char *eon = NULL;
-  char eosc;
-  char eonc;
+  char eosc = '\0';
+  char eonc = '\0';
 
   /* we need to extract name, flags and evr from a full sense information, store result in local copy */
   if (s) {
@@ -579,9 +579,9 @@ return_list_tag_modifier(Header header, int_32 tag_name) {
   int_32 count, type;
   headerGetEntry(header, tag_name, &type, (void **) &list, &count);
 
-  for (i=0; i<count; i++) {
-    char *buff[15];
-    char *s= buff;
+  for (i = 0; i < count; i++) {
+    char buff[15];
+    char *s = buff;
     switch (tag_name) {
     case RPMTAG_FILEFLAGS:
       if (list[i] & RPMFILE_CONFIG)    *s++ = 'c';
@@ -1618,7 +1618,7 @@ Pkg_epoch(pkg)
       RETVAL = 0;
     }
   } else if (pkg->h) {
-    RETVAL = get_int(pkg->h, RPMTAG_SERIAL);
+    RETVAL = get_int(pkg->h, RPMTAG_EPOCH);
   } else RETVAL = 0;
   OUTPUT:
   RETVAL
@@ -1966,7 +1966,7 @@ Pkg_obsoletes_overlap(pkg, s, b_nopromote=1, direction=-1)
   PREINIT:
   struct cb_overlap_s os;
   char *eon = NULL;
-  char eonc;
+  char eonc = '\0';
   CODE:
   os.name = s;
   os.flags = 0;
@@ -2039,7 +2039,7 @@ Pkg_provides_overlap(pkg, s, b_nopromote=1, direction=1)
   PREINIT:
   struct cb_overlap_s os;
   char *eon = NULL;
-  char eonc;
+  char eonc = '\0';
   CODE:
   os.name = s;
   os.flags = 0;
