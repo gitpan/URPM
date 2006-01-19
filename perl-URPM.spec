@@ -1,12 +1,12 @@
 # Do not edit this spec from src.rpm
 # This spec lives in Mandriva's cvs
 
-# $Id: perl-URPM.spec,v 1.185 2005/12/07 16:54:01 rgarciasuarez Exp $
+# $Id: perl-URPM.spec,v 1.187 2006/01/19 13:39:33 rgarciasuarez Exp $
 
 %define name perl-URPM
 %define real_name URPM
-%define version 1.30
-%define release %mkrel 1
+%define version 1.31
+%define release %mkrel 2
 
 %define group %(perl -e 'printf "%%s\\n", "%_vendor" =~ /\\bmandr/i ? "Development/Perl" : "Applications/CPAN"')
 %define rpm_version %(rpm -q --queryformat '%{VERSION}-%{RELEASE}' rpm)
@@ -63,6 +63,13 @@ hdlist files and manage them in memory.
 %{compat_perl_vendorarch}/auto/URPM/URPM.so
 
 %changelog
+* Thu Jan 19 2006 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.31-1mdk
+- New function spec2srcheader() (Olivier Thauvin)
+
+* Fri Jan 06 2006 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.30-2mdk
+- Rebuild for rpm 4.4.4
+- Fix a regression test
+
 * Wed Dec 07 2005 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.30-1mdk
 - Fix epoch comparison bug
 - Be compatible with rpm 4.4.3

@@ -1,14 +1,17 @@
 #!/usr/bin/perl
 
-# $Id: parse.t,v 1.12 2005/10/28 14:10:21 rgarciasuarez Exp $
+# $Id: parse.t,v 1.15 2006/01/19 13:24:14 rgarciasuarez Exp $
 
 use strict;
 use warnings;
-use Test::More tests => 24;
+use Test::More tests => 28;
 use MDV::Packdrakeng;
 use URPM;
 use URPM::Build;
 use URPM::Query;
+
+# shut up
+URPM::setVerbosity(2);
 
 my $a = new URPM;
 ok($a);
@@ -61,4 +64,18 @@ ok(URPM::rpmvercmp("1:1-1mdk", "2:1-1mdk") == -1, "epoch 1 vs 2 = -1");
     ok($pkg->get_tag(1002) eq '1mdk');
     ok($pkg->queryformat("%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}") eq "test-rpm-1.0-1mdk.noarch");
     close $hdfh;
+}
+
+{
+    my $pkg = URPM::spec2srcheader("test-rpm.spec");
+    ok(defined $pkg, "Parsing a spec works");
+    ok($pkg->get_tag(1000) eq 'test-rpm', 'parsed correctly');
+    $pkg = URPM::spec2srcheader("doesnotexist.spec");
+    ok(!defined $pkg, "non-existent spec");
+    open my $f, '>', 'bad.spec' or die "Can't write bad.spec: $!\n";
+    print $f "Name: foo\nVerssion: 2\n";
+    close $f;
+    $pkg = URPM::spec2srcheader("bad.spec");
+    ok(!defined $pkg, "bad spec");
+    END { unlink "bad.spec" }
 }

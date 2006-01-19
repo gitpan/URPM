@@ -10,7 +10,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '1.30';
+our $VERSION = '1.31';
 
 URPM->bootstrap($VERSION);
 
@@ -346,6 +346,13 @@ Recognized options are:
 
 =back
 
+=item URPM::spec2srcheader($specfile)
+
+Returns a URPM::Package object containing the header of the source rpm produced
+by the evaluation of the specfile whose path is given as argument. All
+dependencies stored in this header are exactly the one needed to build the
+specfile.
+
 =head2 The URPM::DB class
 
 =over 4
@@ -671,7 +678,7 @@ Expands the specified macro.
 
 Define a macro. For example,
 
-    URPM::add_macro("vendor Mandrakesoft");
+    URPM::add_macro("vendor Mandriva");
     my $vendor = URPM::expand("%vendor");
 
 The 'noexpand' version doesn't expand literal newline characters in the
@@ -698,10 +705,11 @@ Sets rpm verbosity level. $level is an integer between 2 (RPMMESS_CRIT) and 7
 
 =head1 COPYRIGHT
 
-Copyright 2002-2005 Mandrakesoft
+Copyright 2002, 2003, 2004, 2005 MandrakeSoft SA
 
-Original author: FranE<ccedil>ois Pons
+Copyright 2005, 2006 Mandriva SA
 
+Original author: FranE<ccedil>ois Pons.
 Current maintainer: Rafael Garcia-Suarez
 <rgarciasuarez@mandriva.com>
 

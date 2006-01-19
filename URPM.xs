@@ -1,9 +1,11 @@
-/* Copyright (c) 2002-2005 Mandrakesoft
+/* Copyright (c) 2002, 2003, 2004, 2005 MandrakeSoft SA
+ * Copyright (c) 2005 Mandriva SA
+ *
  * All rights reserved.
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.97 2005/12/01 13:57:19 rgarciasuarez Exp $
+ * $Id: URPM.xs,v 1.101 2006/01/19 13:24:14 rgarciasuarez Exp $
  * 
  */
 
@@ -32,6 +34,7 @@
 #include <rpm/rpmps.h>
 #include <rpm/rpmpgp.h>
 #include <rpm/rpmcli.h>
+#include <rpm/rpmbuild.h>
 
 struct s_Package {
   char *info;
@@ -3642,6 +3645,38 @@ Urpm_stream2header(fp)
         }
         Fclose(fd);
     }
+
+void
+Urpm_spec2srcheader(specfile)
+  char *specfile
+  PREINIT:
+    rpmts ts = rpmtsCreate();
+    URPM__Package pkg;
+    Spec spec = NULL;
+  PPCODE:
+/* Do not verify architecture */
+#define SPEC_ANYARCH 1
+/* Do not verify whether sources exist */
+#define SPEC_FORCE 1
+  if (!parseSpec(ts, specfile, "/", NULL, 0, NULL, NULL, SPEC_ANYARCH, SPEC_FORCE)) {
+    SV *sv_pkg;
+    spec = rpmtsSetSpec(ts, NULL);
+    if (! spec->sourceHeader)
+      initSourceHeader(spec);
+    pkg = (URPM__Package)malloc(sizeof(struct s_Package));
+    memset(pkg, 0, sizeof(struct s_Package));
+    pkg->h = headerLink(spec->sourceHeader);
+    sv_pkg = sv_newmortal();
+    sv_setref_pv(sv_pkg, "URPM::Package", (void*)pkg);
+    XPUSHs(sv_pkg);
+    spec = freeSpec(spec);
+  } else {
+    XPUSHs(&PL_sv_undef);
+    /* apparently rpmlib sets errno this when given a bad spec. */
+    if (errno == EBADF)
+      errno = 0;
+  }
+  ts = rpmtsFree(ts);
 
 void
 expand(name)
