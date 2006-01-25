@@ -10,7 +10,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '1.31';
+our $VERSION = '1.32';
 
 URPM->bootstrap($VERSION);
 
@@ -344,14 +344,14 @@ Recognized options are:
     block => '...'
     filename => '...'
 
-=back
-
 =item URPM::spec2srcheader($specfile)
 
 Returns a URPM::Package object containing the header of the source rpm produced
 by the evaluation of the specfile whose path is given as argument. All
 dependencies stored in this header are exactly the one needed to build the
 specfile.
+
+=back
 
 =head2 The URPM::DB class
 

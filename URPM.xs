@@ -1,11 +1,11 @@
 /* Copyright (c) 2002, 2003, 2004, 2005 MandrakeSoft SA
- * Copyright (c) 2005 Mandriva SA
+ * Copyright (c) 2005, 2006 Mandriva SA
  *
  * All rights reserved.
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.101 2006/01/19 13:24:14 rgarciasuarez Exp $
+ * $Id: URPM.xs,v 1.103 2006/01/25 14:21:07 rgarciasuarez Exp $
  * 
  */
 
@@ -3659,12 +3659,14 @@ Urpm_spec2srcheader(specfile)
 /* Do not verify whether sources exist */
 #define SPEC_FORCE 1
   if (!parseSpec(ts, specfile, "/", NULL, 0, NULL, NULL, SPEC_ANYARCH, SPEC_FORCE)) {
+    int_32 one = 1;
     SV *sv_pkg;
     spec = rpmtsSetSpec(ts, NULL);
     if (! spec->sourceHeader)
       initSourceHeader(spec);
     pkg = (URPM__Package)malloc(sizeof(struct s_Package));
     memset(pkg, 0, sizeof(struct s_Package));
+    headerAddEntry(spec->sourceHeader, RPMTAG_SOURCEPACKAGE, RPM_INT32_TYPE, &one, 1);
     pkg->h = headerLink(spec->sourceHeader);
     sv_pkg = sv_newmortal();
     sv_setref_pv(sv_pkg, "URPM::Package", (void*)pkg);
