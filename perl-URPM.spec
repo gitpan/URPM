@@ -1,11 +1,11 @@
 # Do not edit this spec from src.rpm
 # This spec lives in Mandriva's cvs
 
-# $Id: perl-URPM.spec,v 1.188 2006/01/25 14:21:07 rgarciasuarez Exp $
+# $Id: perl-URPM.spec,v 1.189 2006/02/09 13:52:39 rgarciasuarez Exp $
 
 %define name perl-URPM
 %define real_name URPM
-%define version 1.32
+%define version 1.33
 %define release %mkrel 1
 
 %define group %(perl -e 'printf "%%s\\n", "%_vendor" =~ /\\bmandr/i ? "Development/Perl" : "Applications/CPAN"')
@@ -27,7 +27,6 @@ BuildRequires:	perl%{?mdkversion:-devel}
 BuildRequires:	rpm-devel >= 4.2.3
 Requires:	rpm >= %{rpm_version}
 Requires:	perl(MDV::Packdrakeng)
-Requires:	perl-base >= 2:5.8.7
 Provides:	perl(URPM::Build) = %{version}-%{release}
 Provides:	perl(URPM::Resolve) = %{version}-%{release}
 Provides:	perl(URPM::Signature) = %{version}-%{release}
@@ -63,6 +62,9 @@ hdlist files and manage them in memory.
 %{compat_perl_vendorarch}/auto/URPM/URPM.so
 
 %changelog
+* Thu Feb 09 2006 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.33-1mdk
+- Add repackage flag to run transactions
+
 * Wed Jan 25 2006 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.32-1mdk
 - Minor modification to spec2srcheader()
 

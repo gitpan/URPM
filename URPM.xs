@@ -5,7 +5,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.103 2006/01/25 14:21:07 rgarciasuarez Exp $
+ * $Id: URPM.xs,v 1.105 2006/02/09 13:25:05 rgarciasuarez Exp $
  * 
  */
 
@@ -2928,7 +2928,7 @@ Trans_run(trans, data, ...)
   int translate_message = 0;
   int i;
   PPCODE:
-  for (i = 2; i < items-1; i+=2) {
+  for (i = 2 ; i < items - 1 ; i += 2) {
     STRLEN len;
     char *s = SvPV(ST(i), len);
 
@@ -2954,6 +2954,8 @@ Trans_run(trans, data, ...)
 				        RPMTRANS_FLAG_NOPOSTUN );
     } else if (len == 10 && !memcmp(s, "oldpackage", 10)) {
       if (SvIV(ST(i+1))) probFilter |= RPMPROB_FILTER_OLDPACKAGE;
+    } else if (len == 9 && !memcmp(s, "repackage", 9)) {
+      if (SvIV(ST(i+1))) transFlags |= RPMTRANS_FLAG_REPACKAGE;
     } else if (len == 17 && !memcmp(s, "translate_message", 17))
       translate_message = 1;
     else if (len >= 9 && !memcmp(s, "callback_", 9)) {
