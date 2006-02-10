@@ -5,7 +5,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.105 2006/02/09 13:25:05 rgarciasuarez Exp $
+ * $Id: URPM.xs,v 1.107 2006/02/10 08:53:09 rgarciasuarez Exp $
  * 
  */
 
@@ -1512,6 +1512,18 @@ Pkg_buildtime(pkg)
   CODE:
   if (pkg->h) {
     RETVAL = get_int(pkg->h, RPMTAG_BUILDTIME);
+  } else {
+    RETVAL = 0;
+  }
+  OUTPUT:
+  RETVAL
+
+int
+Pkg_installtid(pkg)
+  URPM::Package pkg
+  CODE:
+  if (pkg->h) {
+    RETVAL = get_int(pkg->h, RPMTAG_INSTALLTID);
   } else {
     RETVAL = 0;
   }
@@ -3331,7 +3343,6 @@ Urpm_verify_rpm(filename, ...)
   rpmRC rc = 0;
   FD_t fd;
   int i;
-  const char *tmpfile = NULL;
   char * fmtsig = NULL;
   char buffer[8192];
   rpmts ts;
@@ -3366,11 +3377,8 @@ Urpm_verify_rpm(filename, ...)
     else if (len == 9 && !memcmp(s, "nodigests", 9)) {
       if (SvIV(ST(i+1))) vsflags |= _RPMVSF_NODIGESTS;
     }
-    else if (len == 12) {
-      if (!memcmp(s, "tmp_filename", 12))
-	tmpfile = SvPV_nolen(ST(i+1));
-      else if (!memcmp(s, "nosignatures", 12))
-	vsflags |= _RPMVSF_NOSIGNATURES;
+    else if (len == 12 && !memcmp(s, "nosignatures", 12)) {
+      vsflags |= _RPMVSF_NOSIGNATURES;
     }
   }
   RETVAL = NULL;

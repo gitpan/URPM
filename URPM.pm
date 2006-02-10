@@ -10,7 +10,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '1.33';
+our $VERSION = '1.34';
 
 URPM->bootstrap($VERSION);
 
@@ -196,7 +196,7 @@ __END__
 
 =head1 NAME
 
-URPM - Perl module to manipulate RPM files
+URPM - Manipulate RPM files and headers
 
 =head1 SYNOPSIS
 
@@ -206,7 +206,7 @@ URPM - Perl module to manipulate RPM files
     my $db = URPM::DB::open();
     $db->traverse(sub {
 	my ($package) = @_; # this is a URPM::Package object
-	print $package->filename, "\n";
+	print $package->name, "\n";
 	# ...
     });
 
@@ -300,6 +300,9 @@ and adds them to the URPM object. Allowed options are
     keep_all_tags => 0 / 1
     callback => sub { ... }
 
+If C<keep_all_tags> isn't specified, URPM will drop all memory-consuming tags
+(notably changelogs, filelists, scriptlets).
+
 =item $urpm->search($name, %options)
 
 Search an RPM by name or by part of name in the list of RPMs represented by
@@ -327,17 +330,18 @@ Then, $callback is called for each matching package in the depslist.
 Verifies an RPM file.
 Recognized options are:
 
-    db => $urpm_db
+    db => $urpm_db (optional, will use this rpm DB)
     nopgp => 0 / 1
     nogpg => 0 / 1
     nomd5 => 0 / 1
     norsa => 0 / 1
     nodsa => 0 / 1
     nodigests => 0 / 1
-    tmp_filename => '...'
     nosignatures => 0 / 1 (equivalent to nopgp = nogpg = norsa = nodsa = 1)
 
 =item $urpm->import_pubkey(%options)
+
+Import a key in the RPM database.
 
     db => $urpm_db
     root => '...'
@@ -517,6 +521,8 @@ Return an array of human readable view of tag values. $tagid is the numerical va
 
 =item $package->id()
 
+=item $package->installtid()
+
 =item $package->is_arch_compat()
 
 =item $package->license()
@@ -529,7 +535,7 @@ The rpm's bare name.
 
 =item $package->obsoletes_nosense()
 
-=item $package->obsoletes_overlap($s, [$nopromoteepoch,] [$direction])
+=item $package->obsoletes_overlap($s, [$nopromoteepoch, [$direction] ])
 
 =item $package->os()
 
