@@ -5,7 +5,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.109 2006/02/13 10:22:51 rgarciasuarez Exp $
+ * $Id: URPM.xs,v 1.118 2006/03/03 15:05:49 rgarciasuarez Exp $
  * 
  */
 
@@ -1181,7 +1181,6 @@ update_header(char *filename, URPM__Package pkg, int keep_all_tags, int vsflags)
 	FD_t fd = fdDup(d);
 	Header header;
 	rpmts ts;
-	/* rpmVSFlags vsflags, ovsflags; */
 
 	close(d);
 	ts = rpmtsCreate();
@@ -3337,118 +3336,100 @@ Urpm_parse_rpm(urpm, filename, ...)
     } else croak("first argument should contain a depslist ARRAY reference");
   } else croak("first argument should be a reference to a HASH");
 
-char *
+int
 Urpm_verify_rpm(filename, ...)
   char *filename
   PREINIT:
-  rpmVSFlags vsflags = RPMVSF_DEFAULT;
-  rpmVSFlags oldvsflags = RPMVSF_DEFAULT;
-  URPM__DB db = NULL;
-  Header ret = NULL;
-  rpmRC rc = 0;
   FD_t fd;
-  int i;
-  char * fmtsig = NULL;
-  char buffer[8192];
-  rpmts ts;
+  int i, oldlogmask;
+  rpmts ts = NULL;
+  struct rpmQVKArguments_s qva;
   CODE:
-  for (i = 1; i < items-1; i+=2) {
+  /* Don't display error messages */
+  oldlogmask = rpmlogSetMask(RPMLOG_UPTO(RPMLOG_PRI(4)));
+  memset(&qva, 0, sizeof(struct rpmQVKArguments_s));
+  qva.qva_source = RPMQV_RPM;
+  qva.qva_flags = VERIFY_ALL;
+  for (i = 1 ; i < items - 1 ; i += 2) {
     STRLEN len;
     char *s = SvPV(ST(i), len);
-
-    if (len == 2 && !memcmp(s, "db", 2)) {
-      if (sv_derived_from(ST(i+1), "URPM::DB")) {
-	IV tmp = SvIV((SV*)SvRV(ST(i+1)));
-	db = INT2PTR(URPM__DB, tmp);
-      } else
-	croak("db is not of type URPM::DB");
-    } else if (len == 5) {
-      if (!memcmp(s, "nopgp", 5)) {
-	if (SvIV(ST(i+1))) vsflags |= (RPMVSF_NOSHA1 | RPMVSF_NOSHA1HEADER);
-      }
-      else if (!memcmp(s, "nogpg", 5)) {
-	if (SvIV(ST(i+1))) vsflags |= (RPMVSF_NOSHA1 | RPMVSF_NOSHA1HEADER);
-      }
-      else if (!memcmp(s, "nomd5", 5)) {
-        if (SvIV(ST(i+1))) vsflags |= (RPMVSF_NOMD5 |  RPMVSF_NOMD5HEADER);
-      }
-      else if (!memcmp(s, "norsa", 5)) {
-        if (SvIV(ST(i+1))) vsflags |= (RPMVSF_NORSA | RPMVSF_NORSAHEADER);
-      }
-      else if (!memcmp(s, "nodsa", 5)) {
-        if (SvIV(ST(i+1))) vsflags |= (RPMVSF_NODSA | RPMVSF_NODSAHEADER);
-      }
-    }
-    else if (len == 9 && !memcmp(s, "nodigests", 9)) {
-      if (SvIV(ST(i+1))) vsflags |= _RPMVSF_NODIGESTS;
-    }
-    else if (len == 12 && !memcmp(s, "nosignatures", 12)) {
-      vsflags |= _RPMVSF_NOSIGNATURES;
+    if (len == 9 && !strncmp(s, "nodigests", 9)) {
+      if (SvIV(ST(i+1))) qva.qva_flags &= ~VERIFY_DIGEST;
+    } else if (len == 12 && !strncmp(s, "nosignatures", 12)) {
+      if (SvIV(ST(i+1))) qva.qva_flags &= ~VERIFY_SIGNATURE;
     }
   }
-  RETVAL = NULL;
   fd = fdOpen(filename, O_RDONLY, 0);
   if (fdFileno(fd) < 0) {
-    RETVAL = "Couldn't open file";
+    RETVAL = 0;
   } else {
-    if (db) {
-      ts = db->ts;
-      /* setting verify flags, keeping trace of current flags */
-      oldvsflags = rpmtsSetVSFlags(ts, vsflags);
+    read_config_files(0);
+    ts = rpmtsCreate();
+    rpmtsSetRootDir(ts, "/");
+    rpmtsOpenDB(ts, O_RDONLY);
+    if (rpmVerifySignatures(&qva, ts, fd, filename)) {
+      RETVAL = 0;
     } else {
-      /* compabilty mode to use rpmdb installed on / */
-      ts = rpmtsCreate();
-      read_config_files(0);
-      rpmtsSetRootDir(ts, "/");
-      rpmtsOpenDB(ts, O_RDONLY);
+      RETVAL = 1;
     }
+    rpmtsFree(ts);
+  }
+  rpmlogSetMask(oldlogmask);
 
-    rc = rpmReadPackageFile(ts, fd, filename, &ret);
-    fdClose(fd);
+  OUTPUT:
+  RETVAL
 
-    if (ret) {
-      fmtsig = headerSprintf(
-          ret,
-          "%|DSAHEADER?{%{DSAHEADER:pgpsig}}:{%|RSAHEADER?{%{RSAHEADER:pgpsig}}:"
-          "{%|SIGGPG?{%{SIGGPG:pgpsig}}:{%|SIGPGP?{%{SIGPGP:pgpsig}}:{(none)}|}|}|}|",
-          rpmTagTable, rpmHeaderFormats, NULL);
-      headerFree(ret);
-      switch(rc) {
-        case RPMRC_OK:
-          sprintf(buffer, "%s", fmtsig);
-          RETVAL = buffer;
-        break;
-        case RPMRC_NOTFOUND:
-          sprintf(buffer, "%s (missing key) NOT OK", fmtsig);
-          RETVAL = buffer;
-        break;
-        case RPMRC_FAIL:
-          RETVAL = "(can't get key) NOT OK";
-        break;
-        case RPMRC_NOTTRUSTED:
-          sprintf(buffer, "%s (Key not trusted) OK", fmtsig);
-          RETVAL = buffer;
-        break;
-        case RPMRC_NOKEY:
-          sprintf(buffer, "(no key found) OK");
-          RETVAL = buffer;
-        break;
-        default: /* can't happen */
-        break;
-      }
-    } else {
-	RETVAL = "Unable to read rpm file";
+char *
+Urpm_verify_signature(filename)
+  char *filename
+  PREINIT:
+  rpmts ts = NULL;
+  char result[1024];
+  rpmRC rc;
+  FD_t fd;
+  Header h;
+  CODE:
+  fd = fdOpen(filename, O_RDONLY, 0);
+  if (fdFileno(fd) < 0) {
+    RETVAL = "NOT OK (could not read file)";
+  } else {
+    read_config_files(0);
+    ts = rpmtsCreate();
+    rpmtsSetRootDir(ts, "/");
+    rpmtsOpenDB(ts, O_RDONLY);
+    rpmtsSetVSFlags(ts, RPMVSF_DEFAULT);
+    rc = rpmReadPackageFile(ts, fd, filename, &h);
+    *result = '\0';
+    switch(rc) {
+      case RPMRC_OK:
+	{
+	  char *fmtsig = headerSprintf(
+	      h,
+	      "%|DSAHEADER?{%{DSAHEADER:pgpsig}}:{%|RSAHEADER?{%{RSAHEADER:pgpsig}}:"
+	      "{%|SIGGPG?{%{SIGGPG:pgpsig}}:{%|SIGPGP?{%{SIGPGP:pgpsig}}:{(none)}|}|}|}|",
+	      rpmTagTable, rpmHeaderFormats, NULL);
+	  snprintf(result, sizeof(result), "OK (%s)", fmtsig);
+	  free(fmtsig);
+	}
+	break;
+      case RPMRC_NOTFOUND:
+	snprintf(result, sizeof(result), "NOT OK (signature not found): %s", rpmErrorString());
+	break;
+      case RPMRC_FAIL:
+	snprintf(result, sizeof(result), "NOT OK (fail): %s", rpmErrorString());
+	break;
+      case RPMRC_NOTTRUSTED:
+	snprintf(result, sizeof(result), "NOT OK (key not trusted): %s", rpmErrorString());
+	break;
+      case RPMRC_NOKEY:
+	snprintf(result, sizeof(result), "NOT OK (no key): %s", rpmErrorString());
+	break;
     }
+    RETVAL = result;
+    if (h) headerFree(h);
+    rpmtsFree(ts);
   }
 
-  if (!db)
-    ts = rpmtsFree(ts);
-  else
-    /* Restoring verification flag to the ts */
-    (void) rpmtsSetVSFlags(ts, oldvsflags);
-
-  _free(fmtsig);
-  if (!RETVAL) RETVAL = "";
   OUTPUT:
   RETVAL
 
@@ -3507,6 +3488,8 @@ Urpm_import_pubkey(...)
   } else if (block) {
     blen = block_len;
     b = memcpy(malloc(blen+1), block, blen+1); /* XXX should use xmalloc instead */
+    rc = 0;
+  } else {
     rc = 0;
   }
   if (rc || b == NULL || blen <= 0) {

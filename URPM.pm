@@ -10,7 +10,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '1.36';
+our $VERSION = '1.37';
 
 URPM->bootstrap($VERSION);
 
@@ -328,16 +328,17 @@ Then, $callback is called for each matching package in the depslist.
 =item URPM::verify_rpm($file, %options)
 
 Verifies an RPM file.
+Returns 0 on failure, 1 on success.
 Recognized options are:
 
-    db => $urpm_db (optional, will use this rpm DB)
-    nopgp => 0 / 1
-    nogpg => 0 / 1
-    nomd5 => 0 / 1
-    norsa => 0 / 1
-    nodsa => 0 / 1
     nodigests => 0 / 1
-    nosignatures => 0 / 1 (equivalent to nopgp = nogpg = norsa = nodsa = 1)
+    nosignatures => 0 / 1
+
+=item URPM::verify_signature($file)
+
+Verifies the signature of an RPM file. Returns a string that will contain "OK"
+or "NOT OK" as well as a description of the found key (if successful) or of the
+error (if signature verification failed.)
 
 =item $urpm->import_pubkey(%options)
 
@@ -524,6 +525,11 @@ Return an array of human readable view of tag values. $tagid is the numerical va
 =item $package->installtid()
 
 =item $package->is_arch_compat()
+
+Returns whether this package is compatible with the current machine's
+architecture. 0 means not compatible. The higher the result is, the "more
+compatible" the package is; in other words the return value is a compatibility
+score.
 
 =item $package->license()
 

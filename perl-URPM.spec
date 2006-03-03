@@ -1,11 +1,11 @@
 # Do not edit this spec from src.rpm
 # This spec lives in Mandriva's cvs
 
-# $Id: perl-URPM.spec,v 1.193 2006/02/13 10:40:01 rgarciasuarez Exp $
+# $Id: perl-URPM.spec,v 1.194 2006/03/03 15:48:33 rgarciasuarez Exp $
 
 %define name perl-URPM
 %define real_name URPM
-%define version 1.36
+%define version 1.37
 %define release %mkrel 1
 
 %define group %(perl -e 'printf "%%s\\n", "%_vendor" =~ /\\bmandr/i ? "Development/Perl" : "Applications/CPAN"')
@@ -62,6 +62,13 @@ hdlist files and manage them in memory.
 %{compat_perl_vendorarch}/auto/URPM/URPM.so
 
 %changelog
+* Fri Mar 03 2006 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.37-1mdk
+- Rewrite verify_rpm(), which wasn't working with recent rpms
+  (note incompatible API change)
+- New function verify_signature()
+- Make sure -fno-strict-aliasing is used for compilation
+- More docs
+
 * Mon Feb 13 2006 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.36-1mdk
 - Add flag ignorearch for installations
 
