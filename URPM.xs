@@ -5,7 +5,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.118 2006/03/03 15:05:49 rgarciasuarez Exp $
+ * $Id: URPM.xs,v 1.121 2006/03/06 14:11:01 rgarciasuarez Exp $
  * 
  */
 
@@ -1230,6 +1230,7 @@ update_header(char *filename, URPM__Package pkg, int keep_all_tags, int vsflags)
 	  }
 	  return 1;
 	}
+	rpmtsFree(ts);
       } else if (sig[0] == 0x8e && sig[1] == 0xad && sig[2] == 0xe8 && sig[3] == 0x01) {
 	FD_t fd = fdDup(d);
 
@@ -2631,10 +2632,15 @@ Db_open(prefix="", write_perm=0)
   CODE:
   read_config_files(0);
   db = malloc(sizeof(struct s_Transaction));
-  db->ts = rpmtsCreate();
   db->count = 1;
+  db->ts = rpmtsCreate();
   rpmtsSetRootDir(db->ts, prefix);
-  RETVAL = rpmtsOpenDB(db->ts, write_perm ? O_RDWR | O_CREAT : O_RDONLY) == 0 ? db : NULL;
+  if (rpmtsOpenDB(db->ts, write_perm ? O_RDWR | O_CREAT : O_RDONLY) == 0) {
+    RETVAL = db;
+  } else {
+    RETVAL = NULL;
+    rpmtsFree(db->ts);
+  }
   OUTPUT:
   RETVAL
 
@@ -2656,10 +2662,8 @@ void
 Db_DESTROY(db)
   URPM::DB db
   CODE:
-  if (--db->count <= 0) {
-    rpmtsFree(db->ts);
-    free(db);
-  }
+  rpmtsFree(db->ts);
+  if (!--db->count) free(db);
 
 int
 Db_traverse(db,callback)
@@ -2670,6 +2674,7 @@ Db_traverse(db,callback)
   rpmdbMatchIterator mi;
   int count = 0;
   CODE:
+  db->ts = rpmtsLink(db->ts, "URPM::DB::traverse");
   mi = rpmtsInitIterator(db->ts, RPMDBI_PACKAGES, NULL, 0);
   while ((header = rpmdbNextIterator(mi))) {
     if (SvROK(callback)) {
@@ -2691,6 +2696,7 @@ Db_traverse(db,callback)
     ++count;
   }
   rpmdbFreeIterator(mi);
+  rpmtsFree(db->ts);
   RETVAL = count;
   OUTPUT:
   RETVAL
@@ -2731,6 +2737,7 @@ Db_traverse_tag(db,tag,names,callback)
       STRLEN str_len;
       SV **isv = av_fetch(names_av, i, 0);
       char *name = SvPV(*isv, str_len);
+      db->ts = rpmtsLink(db->ts, "URPM::DB::traverse_tag");
       mi = rpmtsInitIterator(db->ts, rpmtag, name, str_len);
       while ((header = rpmdbNextIterator(mi))) {
 	if (SvROK(callback)) {
@@ -2752,6 +2759,7 @@ Db_traverse_tag(db,tag,names,callback)
 	++count;
       }
       rpmdbFreeIterator(mi);
+      rpmtsFree(db->ts);
     } 
   } else croak("bad arguments list");
   RETVAL = count;
@@ -2765,8 +2773,9 @@ Db_create_transaction(db, prefix="/")
   CODE:
   /* this is *REALLY* dangerous to create a new transaction while another is open,
      so use the db transaction instead. */
+  db->ts = rpmtsLink(db->ts, "URPM::DB::create_transaction");
+  ++db->count;
   RETVAL = db;
-  ++RETVAL->count;
   OUTPUT:
   RETVAL
 
@@ -2777,10 +2786,8 @@ void
 Trans_DESTROY(trans)
   URPM::Transaction trans
   CODE:
-  if (--trans->count <= 0) {
-    rpmtsFree(trans->ts);
-    free(trans);
-  }
+  rpmtsFree(trans->ts);
+  if (!--trans->count) free(trans);
 
 void
 Trans_set_script_fd(trans, fdno)
@@ -3473,7 +3480,7 @@ Urpm_import_pubkey(...)
   RETVAL = 1;
   /* get transaction for importing keys, open rpmdb in write mode */
   if (db) {
-    ts = db->ts;
+    ts = db->ts = rpmtsLink(db->ts, "URPM::import_pubkey");
   } else {
     /* compabilty mode to use rpmdb installed on / */
     ts = rpmtsCreate();
@@ -3619,7 +3626,7 @@ Urpm_import_pubkey(...)
   }
   rpmtsClean(ts);
   _free(pkt);
-  if (!db) rpmtsFree(ts);
+  rpmtsFree(ts);
   OUTPUT:
   RETVAL
 
