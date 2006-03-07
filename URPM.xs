@@ -5,7 +5,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.121 2006/03/06 14:11:01 rgarciasuarez Exp $
+ * $Id: URPM.xs,v 1.122 2006/03/07 10:07:26 rgarciasuarez Exp $
  * 
  */
 
@@ -2996,6 +2996,7 @@ Trans_run(trans, data, ...)
     if (repa) free(repa);
   }
   rpmtsSetFlags(trans->ts, transFlags);
+  trans->ts = rpmtsLink(trans->ts, "URPM::Transaction::run");
   rpmtsSetNotifyCallback(trans->ts, rpmRunTransactions_callback, &td);
   if (rpmtsRun(trans->ts, NULL, probFilter) > 0) {
     rpmps ps = rpmtsProblems(trans->ts);
@@ -3005,6 +3006,7 @@ Trans_run(trans, data, ...)
     ps = rpmpsFree(ps);
   }
   rpmtsEmpty(trans->ts);
+  rpmtsFree(trans->ts);
 
 MODULE = URPM            PACKAGE = URPM                PREFIX = Urpm_
 
