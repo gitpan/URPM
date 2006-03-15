@@ -5,7 +5,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.122 2006/03/07 10:07:26 rgarciasuarez Exp $
+ * $Id: URPM.xs,v 1.127 2006/03/13 16:37:43 rgarciasuarez Exp $
  * 
  */
 
@@ -1258,10 +1258,17 @@ read_config_files(int force) {
   }
 }
 
+#ifdef RPM_CALLBACK_LONGLONG
+/* That's for rpm >= 4.4.5 */
+# define RPM_CALLBACK_AMOUNT_TYPE unsigned long long
+#else
+# define RPM_CALLBACK_AMOUNT_TYPE unsigned long
+#endif
+
 static void *rpmRunTransactions_callback(const void *h,
 					 const rpmCallbackType what,
-					 const unsigned long amount,
-					 const unsigned long total,
+					 const RPM_CALLBACK_AMOUNT_TYPE amount,
+					 const RPM_CALLBACK_AMOUNT_TYPE total,
 					 const void * pkgKey,
 					 void * data) {
   static struct timeval tprev;
@@ -1274,57 +1281,64 @@ static void *rpmRunTransactions_callback(const void *h,
   char *callback_type = NULL;
   char *callback_subtype = NULL;
 
+  if (!td)
+    return NULL;
+
   switch (what) {
-  case RPMCALLBACK_INST_OPEN_FILE:
-    callback = td->callback_open; callback_type = "open"; break;
-
-  case RPMCALLBACK_INST_CLOSE_FILE:
-    callback = td->callback_close; callback_type = "close"; break;
-
-  case RPMCALLBACK_TRANS_START:
-  case RPMCALLBACK_TRANS_PROGRESS:
-  case RPMCALLBACK_TRANS_STOP:
-    callback = td->callback_trans; callback_type = "trans"; break;
-
-  case RPMCALLBACK_UNINST_START:
-  case RPMCALLBACK_UNINST_PROGRESS:
-  case RPMCALLBACK_UNINST_STOP:
-    callback = td->callback_uninst; callback_type = "uninst"; break;
-
-  case RPMCALLBACK_INST_START:
-  case RPMCALLBACK_INST_PROGRESS:
-    callback = td->callback_inst; callback_type = "inst"; break;
-
-  default:
-    break;
+    case RPMCALLBACK_INST_OPEN_FILE:
+      callback = td->callback_open;
+      callback_type = "open";
+      break;
+    case RPMCALLBACK_INST_CLOSE_FILE:
+      callback = td->callback_close;
+      callback_type = "close";
+      break;
+    case RPMCALLBACK_TRANS_START:
+    case RPMCALLBACK_TRANS_PROGRESS:
+    case RPMCALLBACK_TRANS_STOP:
+      callback = td->callback_trans;
+      callback_type = "trans";
+      break;
+    case RPMCALLBACK_UNINST_START:
+    case RPMCALLBACK_UNINST_PROGRESS:
+    case RPMCALLBACK_UNINST_STOP:
+      callback = td->callback_uninst;
+      callback_type = "uninst";
+      break;
+    case RPMCALLBACK_INST_START:
+    case RPMCALLBACK_INST_PROGRESS:
+      callback = td->callback_inst;
+      callback_type = "inst";
+      break;
+    default:
+      break;
   }
 
   if (callback != NULL) {
     switch (what) {
-    case RPMCALLBACK_TRANS_START:
-    case RPMCALLBACK_UNINST_START:
-    case RPMCALLBACK_INST_START:
-      callback_subtype = "start"; break;
-      gettimeofday(&tprev, NULL);
-
-    case RPMCALLBACK_TRANS_PROGRESS:
-    case RPMCALLBACK_UNINST_PROGRESS:
-    case RPMCALLBACK_INST_PROGRESS:
-      callback_subtype = "progress";
-      gettimeofday(&tcurr, NULL);
-      delta = 1000000 * (tcurr.tv_sec - tprev.tv_sec) + (tcurr.tv_usec - tprev.tv_usec);
-      if (delta < td->min_delta && amount < total - 1)
-	callback = NULL; /* avoid calling too often a given callback */
-      else
-	tprev = tcurr;
-      break;
-
-    case RPMCALLBACK_TRANS_STOP:
-    case RPMCALLBACK_UNINST_STOP:
-      callback_subtype = "stop"; break;
-
-    default:
-      break;
+      case RPMCALLBACK_TRANS_START:
+      case RPMCALLBACK_UNINST_START:
+      case RPMCALLBACK_INST_START:
+	callback_subtype = "start";
+	gettimeofday(&tprev, NULL);
+	break;
+      case RPMCALLBACK_TRANS_PROGRESS:
+      case RPMCALLBACK_UNINST_PROGRESS:
+      case RPMCALLBACK_INST_PROGRESS:
+	callback_subtype = "progress";
+	gettimeofday(&tcurr, NULL);
+	delta = 1000000 * (tcurr.tv_sec - tprev.tv_sec) + (tcurr.tv_usec - tprev.tv_usec);
+	if (delta < td->min_delta && amount < total - 1)
+	  callback = NULL; /* avoid calling too often a given callback */
+	else
+	  tprev = tcurr;
+	break;
+      case RPMCALLBACK_TRANS_STOP:
+      case RPMCALLBACK_UNINST_STOP:
+	callback_subtype = "stop";
+	break;
+      default:
+	break;
     }
 
     if (callback != NULL) {
@@ -2640,6 +2654,7 @@ Db_open(prefix="", write_perm=0)
   } else {
     RETVAL = NULL;
     rpmtsFree(db->ts);
+    free(db);
   }
   OUTPUT:
   RETVAL
@@ -2728,10 +2743,10 @@ Db_traverse_tag(db,tag,names,callback)
     else if (!strcmp(tag, "group"))
       rpmtag = RPMTAG_GROUP;
     else if (!strcmp(tag, "triggeredby"))
-      rpmtag = RPMTAG_BASENAMES;
+      rpmtag = RPMTAG_TRIGGERNAME;
     else if (!strcmp(tag, "path"))
       rpmtag = RPMTAG_BASENAMES;
-    else croak("unknown tag");
+    else croak("unknown tag [%s]", tag);
 
     for (i = 0; i <= len; ++i) {
       STRLEN str_len;
