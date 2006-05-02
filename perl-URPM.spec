@@ -1,11 +1,11 @@
 # Do not edit this spec from src.rpm
 # This spec lives in Mandriva's cvs
 
-# $Id: perl-URPM.spec,v 1.198 2006/03/15 12:42:50 rgarciasuarez Exp $
+# $Id: perl-URPM.spec,v 1.199 2006/05/02 08:33:43 rgarciasuarez Exp $
 
 %define name perl-URPM
 %define real_name URPM
-%define version 1.40
+%define version 1.41
 %define release %mkrel 1
 
 %define group %(perl -e 'printf "%%s\\n", "%_vendor" =~ /\\bmandr/i ? "Development/Perl" : "Applications/CPAN"')
@@ -62,6 +62,10 @@ hdlist files and manage them in memory.
 %{compat_perl_vendorarch}/auto/URPM/URPM.so
 
 %changelog
+* Tue May 02 2006 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.41-1mdk
+- Use more recent defines from the rpmlib
+- Add a function to traverse transactions
+
 * Wed Mar 15 2006 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.40-1mdk
 - Fixes for rpm 4.4.5
 - Fix traversing rpmdb for "triggeredby" relationship

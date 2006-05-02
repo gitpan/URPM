@@ -10,7 +10,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '1.40';
+our $VERSION = '1.41';
 
 URPM->bootstrap($VERSION);
 
@@ -671,6 +671,11 @@ Recognized options are:
     translate_message => 1
 
 They roughly correspond to command-line options to rpm(1).
+
+=item $trans->traverse($callback)
+
+Executes the specified callback (a code reference) for each package in the
+transaction, passing a C<URPM::Package> object as argument the callback.
 
 =back
 
