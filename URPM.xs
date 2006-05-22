@@ -5,7 +5,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.129 2006/04/07 10:07:18 rgarciasuarez Exp $
+ * $Id: URPM.xs,v 1.130 2006/05/22 10:22:06 rgarciasuarez Exp $
  * 
  */
 
@@ -3453,6 +3453,7 @@ Urpm_verify_signature(filename)
     rpmtsOpenDB(ts, O_RDONLY);
     rpmtsSetVSFlags(ts, RPMVSF_DEFAULT);
     rc = rpmReadPackageFile(ts, fd, filename, &h);
+    fdClose(fd);
     *result = '\0';
     switch(rc) {
       case RPMRC_OK:
