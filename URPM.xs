@@ -5,7 +5,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.130 2006/05/22 10:22:06 rgarciasuarez Exp $
+ * $Id: URPM.xs,v 1.131 2006/05/23 21:32:48 othauvin Exp $
  * 
  */
 
@@ -3707,6 +3707,8 @@ Urpm_spec2srcheader(specfile)
     URPM__Package pkg;
     Spec spec = NULL;
   PPCODE:
+/* ensure the config is in memory with all macro */
+  read_config_files(0);
 /* Do not verify architecture */
 #define SPEC_ANYARCH 1
 /* Do not verify whether sources exist */
