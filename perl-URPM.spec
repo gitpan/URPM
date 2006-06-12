@@ -1,11 +1,11 @@
 # Do not edit this spec from src.rpm
 # This spec lives in Mandriva's cvs
 
-# $Id: perl-URPM.spec,v 1.203 2006/05/23 21:48:43 rgarciasuarez Exp $
+# $Id: perl-URPM.spec 36978 2006-06-12 10:31:28Z rafael $
 
 %define name perl-URPM
 %define real_name URPM
-%define version 1.43
+%define version 1.44
 %define release %mkrel 1
 
 %define group %(perl -e 'printf "%%s\\n", "%_vendor" =~ /\\bmandr/i ? "Development/Perl" : "Applications/CPAN"')
@@ -62,6 +62,9 @@ hdlist files and manage them in memory.
 %{compat_perl_vendorarch}/auto/URPM/URPM.so
 
 %changelog
+* Mon Jun 12 2006 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.44-1mdv2007.0
+- Fixes for rpm 4.4.6
+
 * Tue May 23 2006 Rafael Garcia-Suarez <rgarciasuarez@mandriva.com> 1.43-1mdk
 - Fix urpmi .spec by loading macros beforehand (Olivier Thauvin)
 

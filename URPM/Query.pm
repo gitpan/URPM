@@ -5,7 +5,7 @@ use strict;
 # Olivier Thauvin <thauvin@aerov.jussieu.fr>
 # This package extend URPM functions to permit
 # URPM low level query on rpm header
-# $Id: Query.pm,v 1.7 2004/08/02 00:03:20 rgarciasuarez Exp $
+# $Id: Query.pm 32238 2004-08-02 00:03:20Z rgarciasuarez $
 
 # tag2id
 # INPUT array of rpm tag name

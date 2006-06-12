@@ -1,4 +1,4 @@
-# $Id: test-rpm.spec,v 1.1 2004/04/22 05:43:07 othauvin Exp $
+# $Id: test-rpm.spec 32205 2004-04-22 05:43:07Z othauvin $
 Summary: test rpm for perl-URPM test suite
 BuildArch: noarch
 Name: test-rpm

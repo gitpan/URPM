@@ -17,6 +17,7 @@ unless (defined $rpm_path) {
 defined $rpm_path or die "Can't find rpm on this system\n";
 
 my $version = `LC_ALL=C $rpm_path --version`;
+chomp $version;
 $version =~ s/RPM version //;
 $version =~ /^(?:4\.[2-9]|[5-9]|\d{2})/ 
     or die "Unable to build URPM with too old (or undetected) rpm version $version\n";
@@ -26,12 +27,22 @@ print "Found RPM version $version\n";
 my $rpmtopdir = `$rpm_path --eval '%{_topdir}'`;
 chomp $rpmtopdir;
 
+# to generate the ChangeLog depending on the checkout layout
+my $commonusername = "../common/";
+-d $commonusername or do {
+    $commonusername = "../../common/";
+    -d $commonusername or do {
+	$commonusername = "../../../common/";
+	-d $commonusername or $commonusername = "";
+    };
+};
+
 sub MY::postamble {
     <<"**MM**";
 .PHONY: ChangeLog rpmdist srpm rpm
 
 ChangeLog:
-	cvs2cl -W 400 -I ChangeLog --accum -U ../common/username
+	LC_ALL=C svn2cl --accum --strip-prefix=soft/rpm/perl-URPM/trunk --authors ${commonusername}username.xml
 	rm -f *.bak
 
 rpmdist: dist
@@ -49,6 +60,9 @@ rpm: rpmdist
 my $ccflags = '-Wall -fno-strict-aliasing';
 if ($version =~ /^4\.(4\.[5-9]$|4\.\d\d|[5-9]\.|\d\d)/) {
     $ccflags .= ' -DRPM_CALLBACK_LONGLONG';
+}
+if ($version eq '4.4.6') {
+    $ccflags .= ' -DRPM_446';
 }
 
 WriteMakefile(

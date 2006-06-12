@@ -1,6 +1,6 @@
 package URPM;
 
-# $Id: Build.pm,v 1.39 2005/10/28 14:10:21 rgarciasuarez Exp $
+# $Id: Build.pm 32348 2005-10-28 14:10:21Z rgarciasuarez $
 
 use strict;
 

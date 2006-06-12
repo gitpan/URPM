@@ -1,6 +1,6 @@
 package URPM;
 
-# $Id: Resolve.pm,v 1.113 2005/12/07 16:48:31 rgarciasuarez Exp $
+# $Id: Resolve.pm 32361 2005-12-07 16:48:31Z rgarciasuarez $
 
 use strict;
 

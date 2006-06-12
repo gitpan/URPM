@@ -5,7 +5,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs,v 1.131 2006/05/23 21:32:48 othauvin Exp $
+ * $Id: URPM.xs 36979 2006-06-12 10:41:32Z rafael $
  * 
  */
 
@@ -26,6 +26,9 @@
 #undef Fflush
 #undef Mkdir
 #undef Stat
+#ifdef RPM_446
+#   define _RPMPS_INTERNAL
+#endif
 #include <rpm/rpmlib.h>
 #include <rpm/header.h>
 #include <rpm/rpmio.h>
@@ -2838,14 +2841,19 @@ Trans_add(trans, pkg, ...)
 	    while (--j >= 0) {
 	      SV **e = av_fetch(excludepath, j, 0);
 	      if (e != NULL && *e != NULL) {
-		relocations[j].oldPath = SvPV_nolen(*e);
+#ifdef RPM_446
+		rpmRelocation relptr = relocations[j];
+                relptr->oldPath = SvPV_nolen(*e);
+#else
+                relocations[j].oldPath = SvPV_nolen(*e);
+#endif
 	      }
 	    }
 	  }
 	}
       }
     }
-    RETVAL = rpmtsAddInstallElement(trans->ts, pkg->h, (void *)(1+(pkg->flag & FLAG_ID)), update, relocations) == 0;
+    RETVAL = rpmtsAddInstallElement(trans->ts, pkg->h, (fnpyKey)(1+(pkg->flag & FLAG_ID)), update, relocations) == 0;
     /* free allocated memory, check rpm is copying it just above, at least in 4.0.4 */
     free(relocations);
   } else RETVAL = 0;
