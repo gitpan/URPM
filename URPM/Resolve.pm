@@ -1,6 +1,6 @@
 package URPM;
 
-# $Id: Resolve.pm 32361 2005-12-07 16:48:31Z rgarciasuarez $
+# $Id: Resolve.pm 60226 2006-09-06 09:15:31Z rafael $
 
 use strict;
 
@@ -68,7 +68,7 @@ sub find_chosen_packages {
 	    $pkg->flag_skip || $state->{rejected}{$pkg->fullname} and next;
 	    #- determine if this package is better than a possibly previously chosen package.
 	    $pkg->flag_selected || exists $state->{selected}{$pkg->id} and return $pkg;
-	    if ($strict_arch) {
+	    if ($strict_arch && $pkg->arch ne 'src') {
 		my $n = $pkg->name;
 		defined $installed_arch{$n} or $installed_arch{$n} = get_installed_arch($db, $n);
 		$installed_arch{$n} && $pkg->arch ne $installed_arch{$n} and next;
@@ -88,7 +88,7 @@ sub find_chosen_packages {
 		if (!$urpm->{provides}{$name}{$_} || $pkg->provides_overlap($property)) {
 		    #- determine if this package is better than a possibly previously chosen package.
 		    $pkg->flag_selected || exists $state->{selected}{$pkg->id} and return $pkg;
-		    if ($strict_arch) {
+		    if ($strict_arch && $pkg->arch ne 'src') {
 			my $n = $pkg->name;
 			defined $installed_arch{$n} or $installed_arch{$n} = get_installed_arch($db, $n);
 			$installed_arch{$n} && $pkg->arch ne $installed_arch{$n} and next;
@@ -112,7 +112,8 @@ sub find_chosen_packages {
 	#- required).
 	#- If there is no preference, choose the first one by default (higher
 	#- probability of being chosen) and ask the user.
-	#- Takes better architectures into account.
+	#- Packages with more compatibles architectures are always preferred.
+	#- Puts the results in @chosen. Other are left unordered.
 	foreach my $p (values(%packages)) {
 	    unless ($p->flag_upgrade || $p->flag_installed) {
 		#- assume for this small algorithm package to be upgradable.
@@ -144,10 +145,31 @@ sub find_chosen_packages {
 	    push @chosen, $p;
 	}
 
-	#- if several packages are installed, trim the choices.
-	if (!$urpm->{options}{morechoices} && $install && @chosen > 1) { @chosen = ($chosen[0]) }
+	#- return immediately if there is only one chosen package
+	if (@chosen == 1) { return @chosen }
 
-	#- packages that require locales-xxx when the corresponding locales are
+	#- if several packages were selected to match a requested installation,
+	#- and if --more-choices wasn't given, trim the choices to the first one.
+	if (!$urpm->{options}{morechoices} && $install && @chosen > 1) {
+	    return ($chosen[0]);
+	}
+
+	#- prefer kernel-source-stripped over kernel-source
+	{
+	    my (@k_chosen, $stripped_kernel);
+	    foreach my $p (@chosen) {
+		if ($p->name =~ /^kernel-source-stripped/) { #- fast, but unportable
+		    unshift @k_chosen, $p;
+		    $stripped_kernel = 1;
+		} else {
+		    push @k_chosen, $p;
+		}
+	    }
+	    return @k_chosen if $stripped_kernel;
+	}
+
+	#- Now we split @chosen in priority lists depending on locale.
+	#- Packages that require locales-xxx when the corresponding locales are
 	#- already installed should be preferred over packages that require locales
 	#- which are not installed.
 	foreach (@chosen) {
@@ -931,6 +953,7 @@ sub compute_installed_flags {
 	#- compute flags.
 	foreach (keys %{$urpm->{provides}{$p->name} || {}}) {
 	    my $pkg = $urpm->{depslist}[$_];
+	    next if !defined $pkg;
 	    $pkg->is_arch_compat && $pkg->name eq $p->name or next;
 	    #- compute only installed and upgrade flags.
 	    $pkg->set_flag_installed; #- there is at least one package installed (whatever its version).
