@@ -1,6 +1,6 @@
 package URPM;
 
-# $Id: Resolve.pm 60226 2006-09-06 09:15:31Z rafael $
+# $Id: Resolve.pm 65499 2006-10-16 10:11:38Z rafael $
 
 use strict;
 
@@ -542,12 +542,12 @@ sub resolve_requested {
 				      });
 		}
 		if ($pkg->flag_installed && !$pkg->flag_upgrade) {
-		    my $allow;
-		    #- the same or a more recent package is installed,
+		    my $allow = 1;
 		    $db->traverse_tag('name', [ $pkg->name ], sub {
-					  my ($p) = @_;
-					  $allow ||= $pkg->compare_pkg($p) < 0;
-				      });
+			    my ($p) = @_;
+			    #- allow if a less recent package is installed,
+			    $allow &&= $pkg->compare_pkg($p) > 0;
+			});
 		    #- if nothing has been found, just ignore it.
 		    $allow or next;
 		}
@@ -571,8 +571,14 @@ sub resolve_requested {
 	    if ($pkg->arch ne 'src' && !$pkg->flag_disable_obsolete) {
 		my (%diff_provides);
 
+		my $first;
 		foreach ($pkg->name . " < " . $pkg->epoch . ":" . $pkg->version . "-" . $pkg->release, $pkg->obsoletes) {
 		    if (my ($n, $o, $v) = /^([^\s\[]*)(?:\[\*\])?\s*\[?([^\s\]]*)\s*([^\s\]]*)/) {
+			if ($first++ && $n eq $pkg->name) {
+			    #- ignore if this package obsoletes itself
+			    #- otherwise this can cause havoc if: to_install=v3, installed=v2, v3 obsoletes < v2
+			    next;
+			}
 			#- populate avoided entries according to what is selected.
 			foreach (keys %{$urpm->{provides}{$n} || {}}) {
 			    my $p = $urpm->{depslist}[$_];
