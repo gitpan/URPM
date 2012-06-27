@@ -1,8 +1,11 @@
 package URPM;
 
-# $Id: Build.pm 60470 2006-09-07 09:12:08Z rafael $
+# $Id: Build.pm 270395 2010-07-30 00:55:59Z nanardon $
 
 use strict;
+use warnings;
+
+# perl_checker: require URPM
 
 sub _get_tmp_dir () {
     my $t = $ENV{TMPDIR};
@@ -10,6 +13,8 @@ sub _get_tmp_dir () {
     "$t/.build_hdlist";
 }
 
+# DEPRECATED. ONLY USED BY MKCD
+#
 #- prepare build of an hdlist from a list of files.
 #- it can be used to start computing depslist.
 #- parameters are :
@@ -17,6 +22,9 @@ sub _get_tmp_dir () {
 #-   dir      : directory which will contain headers (defaults to /tmp/.build_hdlist)
 #-   callback : perl code to be called for each package read (defaults pack_header)
 #-   clean    : bool to clean cache before (default no).
+#-   packing  : bool to create info (default is weird)
+#
+# deprecated
 sub parse_rpms_build_headers {
     my ($urpm, %options) = @_;
     my ($dir, %cache, @headers);
@@ -24,7 +32,7 @@ sub parse_rpms_build_headers {
     #- check for mandatory options.
     if (@{$options{rpms} || []} > 0) {
 	#- build a working directory which will hold rpm headers.
-	$dir = $options{dir} || _get_tmp_dir;
+	$dir = $options{dir} || _get_tmp_dir();
 	$options{clean} and system($ENV{LD_LOADER} ? $ENV{LD_LOADER} : @{[]}, "rm", "-rf", $dir);
 	-d $dir or mkdir $dir, 0755 or die "cannot create directory $dir\n";
 
@@ -46,11 +54,11 @@ sub parse_rpms_build_headers {
 	}
 
 	foreach (@{$options{rpms}}) {
-	    my ($key) = /([^\/]*)\.rpm$/ or next; #- get rpm filename.
+	    my ($key) = m!([^/]*)\.rpm$! or next; #- get rpm filename.
 	    my ($id, $filename);
 
 	    if ($cache{$key} && $cache{$key}{time} > 0 && $cache{$key}{time} >= (stat $_)[9]) {
-		($id, undef) = $urpm->parse_hdlist("$dir/$cache{$key}{file}", keep_all_tags => $options{keep_all_tags});
+		($id, undef) = $urpm->parse_hdlist("$dir/$cache{$key}{file}", packing => $options{packing}, keep_all_tags => $options{keep_all_tags});
 		unless (defined $id) {
 		  if ($options{dontdie}) {
 		    print STDERR "bad header $dir/$cache{$key}{file}\n";
@@ -77,7 +85,6 @@ sub parse_rpms_build_headers {
 		my $pkg = $urpm->{depslist}[$id];
 
 		$filename = $pkg->fullname;
-		"$filename.rpm" eq $pkg->filename or $filename .= ":$key";
 
 		unless (-s "$dir/$filename") {
 		    open my $fh, ">$dir/$filename" or die "unable to open $dir/$filename for writing\n";
@@ -107,6 +114,8 @@ sub parse_rpms_build_headers {
     @headers;
 }
 
+# DEPRECATED. ONLY USED BY MKCD
+#
 #- allow rereading of hdlist and clean.
 sub unresolved_provides_clean {
     my ($urpm) = @_;
@@ -114,6 +123,8 @@ sub unresolved_provides_clean {
     $urpm->{provides}{$_} = undef foreach keys %{$urpm->{provides} || {}};
 }
 
+# DEPRECATED. ONLY USED BY MKCD
+#
 #- read a list of headers (typically when building an hdlist when provides have
 #- been cleaned).
 #- parameters are :
@@ -124,60 +135,20 @@ sub parse_headers {
     my ($urpm, %options) = @_;
     my ($dir, $start, $id);
 
-    $dir = $options{dir} || _get_tmp_dir;
+    $dir = $options{dir} || _get_tmp_dir();
     -d $dir or die "no directory $dir\n";
 
     $start = @{$urpm->{depslist} || []};
     foreach (@{$options{headers} || []}) {
 	#- make smart use of memory (no need to keep header in memory now).
-	($id, undef) = $urpm->parse_hdlist("$dir/$_", !$options{callback});
+	($id, undef) = $urpm->parse_hdlist("$dir/$_", packing => !$options{callback});
 	defined $id or die "bad header $dir/$_\n";
 	$options{callback} and $options{callback}->($urpm, $id, %options);
     }
     defined $id ? ($start, $id) : @{[]};
 }
 
-# parse_rpms, same behaviour than parse_{hdlist, synthesis}
-# ie: ($start, $end) = parse_*(filestoparse, %options);
-
-sub parse_rpms {
-    my ($urpm, $rpms, %options) = @_;
-    my ($start, $end);
-    $urpm->parse_rpms_build_headers(
-        rpms => $rpms, 
-        %options, 
-        callback => sub {
-            my (undef, $id) = @_;
-	    $start = $id if $start > $id || ! defined($start);
-	    $end = $id   if $end < $id   || ! defined($end);
-        }
-    ) ? ($start, $end) : ();
-}
-
-# fuzzy_parse is a simple wrapper for parse_rpm* function
-# It detect if the file passed is a dir, an hdlist, a synthesis or a rpm
-# it call the good function. 
-sub fuzzy_parse {
-    my ($urpm, %options) = @_;
-    my ($start, $end);
-    foreach my $entry (@{$options{paths} || []}) {
-        if (-d $entry) { # it is a dir
-	    ($start, $end) = $urpm->parse_rpms([ glob("$entry/*.rpm") ], %options);
-	    defined ($start) and return ($start .. $end);
-	} else { # we try some methode to load the file
-	    ($start, $end) = $urpm->parse_hdlist($entry);
-	    defined ($start) and return ($start .. $end);
-
-	    ($start, $end) = $urpm->parse_synthesis($entry);
-	    defined ($start) and return ($start .. $end);
-
-	    ($start, $end) = $urpm->parse_rpms([ $entry ], %options);
-	    defined ($start) and return ($start .. $end);
-        }
-    }
-    return ();
-}
-
+# DEPRECATED. ONLY USED BY MKCD
 #- compute dependencies, result in stored in info values of urpm.
 #- operations are incremental, it is possible to read just one hdlist, compute
 #- dependencies and read another hdlist, and again.
@@ -391,6 +362,8 @@ sub compute_deps {
     ($start, $end);
 }
 
+# DEPRECATED. ONLY USED BY MKCD
+#
 #- build an hdlist from existing depslist, from start to end inclusive.
 #- parameters are :
 #-   hdlist   : hdlist file to use.
@@ -404,10 +377,10 @@ sub build_hdlist {
     my ($urpm, %options) = @_;
     my ($dir, $ratio, @idlist);
 
-    $dir = $options{dir} || _get_tmp_dir;
+    $dir = $options{dir} || _get_tmp_dir();
      -d $dir or die "no directory $dir\n";
 
-    @idlist = $urpm->build_listid($options{start}, $options{end}, $options{idlist}) or return;
+    @idlist = $urpm->build_listid($options{start}, $options{end}, $options{idlist});
 
     #- compression ratio are not very high, sample for cooker
     #- gives the following (main only and cache fed up):
@@ -429,14 +402,14 @@ sub build_hdlist {
     ) or die "Can't create archive";
     foreach my $pkg (@{$urpm->{depslist}}[@idlist]) {
 	my $filename = $pkg->fullname;
-	"$filename.rpm" ne $pkg->filename && $pkg->filename =~ /([^\/]*)\.rpm$/
-	    and $filename .= ":$1";
 	-s "$dir/$filename" or die "bad header $dir/$filename\n";
 	$pack->add($dir, $filename);
     }
 }
 
 #- build synthesis file.
+#- used by genhdlist2 and mkcd
+#-
 #- parameters are :
 #-   synthesis : synthesis file to create (mandatory if fd not given).
 #-   fd        : file descriptor (mandatory if synthesis not given).
@@ -444,13 +417,16 @@ sub build_hdlist {
 #-   end       : index of last package (defaults to last index of depslist).
 #-   idlist    : id list of rpm to compute (defaults is start .. end)
 #-   ratio     : compression ratio (default 9).
+#-   filter    : program to filter through (default is 'gzip -$ratio').
+#- returns true on success
 sub build_synthesis {
     my ($urpm, %options) = @_;
-    my ($ratio, @idlist);
+    my ($ratio, $filter, @idlist);
 
-    @idlist = $urpm->build_listid($options{start}, $options{end}, $options{idlist}) or return;
+    @idlist = $urpm->build_listid($options{start}, $options{end}, $options{idlist});
 
     $ratio = $options{ratio} || 9;
+    $filter = $options{filter} || "gzip -$ratio";
     $options{synthesis} || defined $options{fd} or die "invalid parameters given";
 
     #- first pass: traverse provides to find files provided.
@@ -464,7 +440,7 @@ sub build_synthesis {
 
 
     #- second pass: write each info including files provided.
-    $options{synthesis} and open my $fh, "| " . ($ENV{LD_LOADER} || '') . " gzip -$ratio >'$options{synthesis}'";
+    $options{synthesis} and open my $fh, "| " . ($ENV{LD_LOADER} || '') . " $filter >'$options{synthesis}'";
     foreach (@idlist) {
 	my $pkg = $urpm->{depslist}[$_];
 	my %files;
@@ -476,9 +452,10 @@ sub build_synthesis {
 
 	$pkg->build_info($options{synthesis} ? fileno $fh : $options{fd}, join('@', keys %files));
     }
-    close $fh;
+    close $fh; # returns true on success
 }
 
+# DEPRECATED. ONLY USED BY MKCD
 #- write depslist.ordered file according to info in params.
 #- parameters are :
 #-   depslist : depslist.ordered file to create.
@@ -532,6 +509,7 @@ our $MAKEDELTARPM = '/usr/bin/makedeltarpm';
 #- make_delta_rpm($old_rpm_file, $new_rpm_file)
 # Creates a delta rpm in the current directory.
 
+# DEPRECATED. UNUSED
 sub make_delta_rpm ($$) {
     @_ == 2 or return 0;
     -e $_[0] && -e $_[1] && -x $MAKEDELTARPM or return 0;

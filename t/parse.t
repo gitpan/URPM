@@ -1,37 +1,49 @@
 #!/usr/bin/perl
 
-# $Id: parse.t 32410 2006-03-06 13:45:25Z rgarciasuarez $
+# $Id: parse.t 258553 2009-07-22 18:21:30Z peroyvind $
 
 use strict;
 use warnings;
-use Test::More tests => 29;
+use Test::More tests => 38;
 use MDV::Packdrakeng;
 use URPM;
 use URPM::Build;
-use URPM::Query;
+
+
+chdir 't' if -d 't';
 
 # shut up
 URPM::setVerbosity(2);
 
-my $a = new URPM;
+my $a = URPM->new;
 ok($a);
 
-END { unlink 'hdlist.cz' }
+END { system('rm -rf hdlist.cz empty_hdlist.cz headers tmp') }
 
-my ($start, $end) = $a->parse_rpms_build_headers(rpms => [ "t/RPMS/noarch/test-rpm-1.0-1mdk.noarch.rpm" ], keep_all_tags => 1);
+my ($start, $end) = $a->parse_rpms_build_headers(rpms => [ "tmp/RPMS/noarch/test-rpm-1.0-1mdk.noarch.rpm" ], keep_all_tags => 1);
 ok(@{$a->{depslist}} == 1);
 my $pkg = $a->{depslist}[0];
 ok($pkg);
-my %tags = $a->list_rpm_tag;
-ok(keys %tags);
 is($pkg->get_tag(1000), 'test-rpm', 'name');
 is($pkg->get_tag(1001), '1.0', 'version');
 is($pkg->get_tag(1002), '1mdk', 'release');
-TODO: {
-    local $TODO = "not implemented";
-    is($pkg->queryformat("%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}"), "test-rpm-1.0-1mdk.noarch",
-	q/get headers from parsing rpm/);
-}
+
+mkdir 'headers';
+system('touch headers/empty');
+is(URPM->new->parse_hdlist('headers/empty'), undef, 'empty header');
+system('echo FOO > headers/bad');
+is(URPM->new->parse_hdlist('headers/bad'), undef, 'bad rpm header');
+
+$a->build_hdlist(
+    start  => 0,
+    end    => -1,
+    hdlist => 'empty_hdlist.cz',
+);
+ok(-f 'empty_hdlist.cz');
+
+($start, $end) = URPM->new->parse_hdlist('empty_hdlist.cz');
+is("$start $end", "0 -1", 'empty hdlist');
+
 
 $a->build_hdlist(
     start  => 0,
@@ -42,8 +54,9 @@ $a->build_hdlist(
 
 ok(-f 'hdlist.cz');
 
-my $b = new URPM;
+my $b = URPM->new;
 ($start, $end) = $b->parse_hdlist('hdlist.cz', keep_all_tags => 1);
+is("$start $end", "0 0", 'parse_hdlist');
 ok(@{$b->{depslist}} == 1);
 $pkg = $b->{depslist}[0];
 ok($pkg);
@@ -51,7 +64,18 @@ is($pkg->get_tag(1000), 'test-rpm', 'name');
 is($pkg->get_tag(1001), '1.0', 'version');
 is($pkg->get_tag(1002), '1mdk', 'release');
 is($pkg->queryformat("%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}"), "test-rpm-1.0-1mdk.noarch",
-    q/get headers from hdlist/);
+    q(get headers from hdlist));
+
+my $headers = eval { [ $b->parse_rpms_build_headers(rpms => [ "tmp/RPMS/noarch/test-rpm-1.0-1mdk.noarch.rpm" ], 
+						    dir => 'headers') ] };
+is($@, '', 'parse_rpms_build_headers');
+is(int @$headers, 1, 'parse_rpms_build_headers');
+ok(@{$b->{depslist}} == 2);
+($start, $end) = eval { $b->parse_headers(dir => "headers", headers => $headers) };
+is($@, '', 'parse_headers');
+is("$start $end", "2 2", 'parse_headers');
+
+
 
 # Version comparison
 ok(URPM::rpmvercmp("1-1mdk",     "1-1mdk") ==  0, "Same value = 0");
@@ -68,6 +92,7 @@ ok(URPM::rpmvercmp("1:1-1mdk", "2:1-1mdk") == -1, "epoch 1 vs 2 = -1");
     is($pkg->get_tag(1001), '1.0');
     is($pkg->get_tag(1002), '1mdk');
     is($pkg->queryformat("%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}"), "test-rpm-1.0-1mdk.noarch");
+    ok($pkg->is_arch_compat(), "Arch compat works");
     close $hdfh;
 }
 
@@ -84,3 +109,4 @@ ok(URPM::rpmvercmp("1:1-1mdk", "2:1-1mdk") == -1, "epoch 1 vs 2 = -1");
     ok(!defined $pkg, "bad spec");
     END { unlink "bad.spec" }
 }
+

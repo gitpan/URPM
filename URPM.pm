@@ -1,6 +1,7 @@
 package URPM;
 
 use strict;
+use warnings;
 use DynaLoader;
 
 # different files, but same package
@@ -10,7 +11,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '1.47';
+our $VERSION = '4.9';
 
 URPM->bootstrap($VERSION);
 
@@ -19,12 +20,30 @@ sub new {
     my $self = bless {
 	depslist => [],
 	provides => {},
+	obsoletes => {},
     }, $class;
     $self->{nofatal} = 1 if $options{nofatal};
     $self;
 }
 
-sub set_nofatal { $_[0]->{nofatal} = $_[1] }
+sub set_nofatal {
+    my ($urpm, $bool) = @_;
+    $urpm->{nofatal} = $bool }
+
+sub packages_providing {
+    my ($urpm, $name) = @_;
+    grep { $_ } map { $urpm->{depslist}[$_] } keys %{$urpm->{provides}{$name} || {}};
+}
+
+sub packages_obsoleting {
+    my ($urpm, $name) = @_;
+    map { $urpm->{depslist}[$_] } keys %{$urpm->{obsoletes}{$name} || {}};
+}
+
+sub packages_by_name {
+    my ($urpm, $name) = @_;
+    grep { $name eq $_->name } packages_providing($urpm, $name);
+}
 
 sub search {
     my ($urpm, $name, %options) = @_;
@@ -33,15 +52,13 @@ sub search {
     #- tries other alternative if no strict searching.
     unless ($options{strict_name}) {
 	if ($name =~ /^(.*)-([^\-]*)-([^\-]*)\.([^\.\-]*)$/) {
-	    foreach (keys %{$urpm->{provides}{$1} || {}}) {
-		my $pkg = $urpm->{depslist}[$_];
+	    foreach my $pkg (packages_providing($urpm, $1)) {
 		$pkg->fullname eq $name and return $pkg;
 	    }
 	}
 	unless ($options{strict_fullname}) {
 	    if ($name =~ /^(.*)-([^\-]*)-([^\-]*)$/) {
-		foreach (keys %{$urpm->{provides}{$1} || {}}) {
-		    my $pkg = $urpm->{depslist}[$_];
+		foreach my $pkg (packages_providing($urpm, $1)) {
 		    my ($n, $v, $r, $a) = $pkg->fullname;
 		    $options{src} && $a eq 'src' || $pkg->is_arch_compat or next;
 		    "$n-$v-$r" eq $name or next;
@@ -50,8 +67,7 @@ sub search {
 		$best and return $best;
 	    }
 	    if ($name =~ /^(.*)-([^\-]*)$/) {
-		foreach (keys %{$urpm->{provides}{$1} || {}}) {
-		    my $pkg = $urpm->{depslist}[$_];
+		foreach my $pkg (packages_providing($urpm, $1)) {
 		    my ($n, $v, undef, $a) = $pkg->fullname;
 		    $options{src} && $a eq 'src' || $pkg->is_arch_compat or next;
 		    "$n-$v" eq $name or next;
@@ -63,8 +79,7 @@ sub search {
     }
 
     unless ($options{strict_fullname}) {
-	foreach (keys %{$urpm->{provides}{$name} || {}}) {
-	    my $pkg = $urpm->{depslist}[$_];
+	foreach my $pkg (packages_providing($urpm, $name)) {
 	    my ($n, undef, undef, $a) = $pkg->fullname;
 	    $options{src} && $a eq 'src' || $pkg->is_arch_compat or next;
 	    $n eq $name or next;
@@ -81,22 +96,27 @@ sub search {
 sub build_listid {
     my ($urpm, $start, $end, $listid) = @_;
 
-    @{$listid || []} > 0 ? @{$listid} :
+    @{$listid || []} > 0 ? @$listid :
         (($start || 0) .. (defined($end) ? $end : $#{$urpm->{depslist}}));
 }
 
+#- this is used when faking a URPM::DB: $urpm can be used as-a $db
+#- (used for urpmi --env)
 sub traverse {
     my ($urpm, $callback) = @_;
 
     if ($callback) {
-	foreach (@{$urpm->{depslist} || []}) {
-	    $callback->($_);
+	foreach my $p (@{$urpm->{depslist} || []}) {
+	    $callback->($p);
 	}
     }
 
     scalar @{$urpm->{depslist} || []};
 }
 
+
+#- this is used when faking a URPM::DB: $urpm can be used as-a $db
+#- (used for urpmi --env)
 sub traverse_tag {
     my ($urpm, $tag, $names, $callback) = @_;
     my $count = 0; 
@@ -105,8 +125,7 @@ sub traverse_tag {
     if (@{$names || []}) {
 	if ($tag eq 'name') {
 	    foreach my $n (@$names) {
-		foreach (keys %{$urpm->{provides}{$n} || {}}) {
-		    my $p = $urpm->{depslist}[$_];
+		foreach my $p (packages_providing($urpm, $n)) {
 		    $p->name eq $n or next;
 		    $callback and $callback->($p);
 		    ++$count;
@@ -158,6 +177,38 @@ sub traverse_tag {
     $count;
 }
 
+#- this is used when faking a URPM::DB: $urpm can be used as-a $db
+#- (used for urpmi --env)
+sub traverse_tag_find {
+    my ($urpm, $tag, $name, $callback) = @_;
+    $urpm->traverse_tag($tag, [ $name ], $callback);
+}
+
+# wrapper around XS functions
+# it handles error cases
+sub _parse_hdlist_or_synthesis {
+    my ($parse_func, $urpm, $file, %options) = @_;
+
+    my $previous_indice = @{$urpm->{depslist}};
+    if (my ($start, $end) = $parse_func->($urpm, $file, %options)) {
+	($start, $end);
+    } elsif (!$options{callback}) {
+	#- parse_hdlist__XS may have added some pkgs to {depslist},
+	#- but we don't want those pkgs since reading hdlist failed later.
+	#- so we need to drop them
+	#- FIXME: {provides} would need to be reverted too!
+	splice(@{$urpm->{depslist}}, $previous_indice);
+	();
+    } else {
+	#- we need to keep them since the callback has been used
+	#- and we can't pretend we didn't parse anything
+	#- (needed for genhdlist2)
+	();
+    }
+}
+sub parse_synthesis { _parse_hdlist_or_synthesis(\&parse_synthesis__XS, @_) }
+sub parse_hdlist { _parse_hdlist_or_synthesis(\&parse_hdlist__XS, @_) }
+
 sub add_macro {
     my ($s) = @_;
     #- quote for rpmlib, *sigh*
@@ -182,6 +233,26 @@ selected:	  ${\($pkg->flag_selected)}
 skip:		  ${\($pkg->flag_skip)}
 upgrade:	  ${\($pkg->flag_upgrade)}
 EODUMP
+}
+
+my %arch_cache;
+sub is_arch_compat {
+    my ($pkg) = @_;
+    my $arch = $pkg->arch;
+    exists $arch_cache{$arch} and return $arch_cache{$arch};
+
+    $arch_cache{$arch} = is_arch_compat__XS($pkg);
+}
+
+sub changelogs {
+    my ($pkg) = @_;
+
+    my @ti = $pkg->changelog_time or return;
+    my @na = $pkg->changelog_name or return;
+    my @tx = $pkg->changelog_text or return;
+    map {
+	{ time => $ti[$_], name => $na[$_], text => $tx[$_] };
+    } 0 .. $#ti;
 }
 
 package URPM::Transaction;
@@ -237,8 +308,9 @@ contains two fields:
 B<depslist> is an arrayref containing the list of depending packages (which are
 C<URPM::Package> objects).
 
-B<provides> is an hashref containing as keys the list of items provided by the
-URPM object.
+B<provides> is an hashref containing as keys the list of property names
+provided by the URPM object. The associated value is true if the property is
+versioned.
 
 If the constructor is called with the arguments C<< nofatal => 1 >>, various
 fatal error messages are suppressed (file not found in parse_hdlist() and
@@ -248,11 +320,7 @@ parse_synthesis()).
 
 Force the re-reading of the RPM configuration files.
 
-=item URPM::list_rpm_tag()
-
-Returns a hash containing the key/id values of known rpm tags.
-
-=item URPM::ranges_overlap($range1, $range2 [, $nopromoteepoch])
+=item URPM::ranges_overlap($range1, $range2)
 
 This utility function compares two version ranges, in order to calculate
 dependencies properly. The ranges have roughly the form
@@ -261,14 +329,7 @@ dependencies properly. The ranges have roughly the form
 
 where epoch, version and release are RPM-style version numbers.
 
-If the optional parameter $nopromoteepoch is true, and if the 2nd range has no
-epoch while the first one has one, then the 2nd range is assumed to have an
-epoch C<== 0>.
-
-B<Warning>: $nopromoteepoch actually defaults to 1, so if you're going to
-pass a variable, make sure undef is treated like 1, not 0.
-
-=item $urpm->parse_synthesis($file, [ callback => sub {...} ])
+=item $urpm->parse_synthesis($file [, callback => sub {...} ])
 
 This method gets the B<depslist> and the B<provides> from a synthesis file
 and adds them to the URPM object.
@@ -285,12 +346,6 @@ file and adds them to the URPM object. Allowed options are
 The return value is a two-element array containing the first and the last id
 parsed.
 
-=item $urpm->parse_rpms($files, %options)
-
-This method loads rpm informations from rpm headers and adds them to the URPM
-object. The return value is a two-element array containing the first and the
-last id parsed.
-
 =item $urpm->parse_rpm($file, %options)
 
 This method gets the B<depslist> and the B<provides> from an RPM file
@@ -302,6 +357,14 @@ and adds them to the URPM object. Allowed options are
 
 If C<keep_all_tags> isn't specified, URPM will drop all memory-consuming tags
 (notably changelogs, filelists, scriptlets).
+
+=item $urpm->packages_providing($name)
+
+Returns a list of C<URPM::Package> providing <$name>
+
+=item $urpm->packages_by_name($name)
+
+Returns a list of C<URPM::Package> corresponding to the wanted <$name>
 
 =item $urpm->search($name, %options)
 
@@ -317,6 +380,8 @@ this $urpm. The behaviour of the search is influenced by several options:
 Executes the callback for each package in the depslist, passing a
 C<URPM::Package> object as argument the callback.
 
+This is used when faking a URPM::DB: $urpm can be used as-a $db
+
 =item $urpm->traverse_tag($tag, $names, $callback)
 
 $tag may be one of C<name>, C<whatprovides>, C<whatrequires>, C<whatconflicts>,
@@ -324,6 +389,16 @@ C<group>, C<triggeredby>, or C<path>.
 $names is a reference to an array, holding the acceptable values of the said
 tag for the searched variables.
 Then, $callback is called for each matching package in the depslist.
+
+This is used when faking a URPM::DB: $urpm can be used as-a $db
+
+=item $urpm->traverse_tag_find($tag,$name,$callback)
+
+Quite similar to C<traverse_tag>, but stops when $callback returns true.
+
+(also note that only one $name is handled)
+
+This is used when faking a URPM::DB: $urpm can be used as-a $db
 
 =item URPM::verify_rpm($file, %options)
 
@@ -390,6 +465,12 @@ $names is a reference to an array, holding the acceptable values of the said
 tag for the searched variables.
 Then, $callback is called for each matching package in the DB.
 
+=item $db->traverse_tag_find($tag,$name,$callback)
+
+Quite similar to C<traverse_tag>, but stops when $callback returns true.
+
+(also note that only one $name is handled)
+
 =item $db->create_transaction($prefix)
 
 Creates and returns a new transaction (an C<URPM::Transaction> object) on the
@@ -436,9 +517,16 @@ Writes a line of information in a synthesis file.
 
 =item $package->conflicts()
 
+Full conflicts tags
+
 =item $package->conflicts_nosense()
 
+Just the conflicted package name.
+This is only used when faking a URPM::DB: $urpm can be used as-a $db
+
 =item $package->description()
+
+=item $package->dirnames()
 
 =item $package->distribution()
 
@@ -448,9 +536,7 @@ Writes a line of information in a synthesis file.
 
 =item $package->exclusivearchs()
 
-=item $package->filename()
-
-The rpm's file name.
+=item $package->filelinktos()
 
 =item $package->files()
 
@@ -519,8 +605,6 @@ Return an array of human readable view of tag values. $tagid is the numerical va
 
 =item $package->group()
 
-=item $package->header_filename()
-
 =item $package->id()
 
 =item $package->installtid()
@@ -528,9 +612,8 @@ Return an array of human readable view of tag values. $tagid is the numerical va
 =item $package->is_arch_compat()
 
 Returns whether this package is compatible with the current machine's
-architecture. 0 means not compatible. The higher the result is, the "more
-compatible" the package is; in other words the return value is a compatibility
-score.
+architecture. 0 means not compatible. The lower the result is, the preferred
+the package is.
 
 =item $package->license()
 
@@ -540,9 +623,13 @@ The rpm's bare name.
 
 =item $package->obsoletes()
 
+Full obsoletes tags
+
 =item $package->obsoletes_nosense()
 
-=item $package->obsoletes_overlap($s, [$nopromoteepoch, [$direction] ])
+Just the obsoleted package name.
+
+=item $package->obsoletes_overlap($s)
 
 =item $package->os()
 
@@ -554,9 +641,13 @@ The rpm's bare name.
 
 =item $package->provides()
 
+Full provides tags
+
 =item $package->provides_nosense()
 
-=item $package->provides_overlap($s, [$nopromoteepoch,] [$direction])
+Just the provided package name.
+
+=item $package->provides_overlap($s)
 
 =item $package->rate()
 
@@ -564,9 +655,17 @@ The rpm's bare name.
 
 =item $package->requires()
 
+Full requires tags
+
 =item $package->requires_nosense()
 
+Just the required package name.
+
 =item $package->rflags()
+
+=item $package->filesize()
+
+Size of the rpm file (ie the rpm header + cpio body)
 
 =item $package->set_flag($name, $value)
 
@@ -597,8 +696,6 @@ The rpm's bare name.
 =item $package->summary()
 
 =item $package->update_header($filename, ...)
-
-=item $package->upgrade_files()
 
 =item $package->url()
 
@@ -698,7 +795,7 @@ Expands the specified macro.
 
 Define a macro. For example,
 
-    URPM::add_macro("vendor Mandriva");
+    URPM::add_macro("vendor Mageia");
     my $vendor = URPM::expand("%vendor");
 
 The 'noexpand' version doesn't expand literal newline characters in the
@@ -721,17 +818,76 @@ Sets rpm verbosity level. $level is an integer between 2 (RPMMESS_CRIT) and 7
 
 =item rpmErrorWriteTo($fd)
 
+=item archscore($arch)
+
+Return the score of the given arch. 0 mean not compatible,
+lower is prefered.
+
+=item osscore($os)
+
+Return the score of the given os. 0 mean not compatible,
+lower is prefered.
+
 =back
+
+=head2 The $state object
+
+It has the following fields:
+
+B<backtrack>: { 
+   selected => { id => undef }, 
+   deadlock => { id|property => undef },
+ }
+
+B<cached_installed>: { property_name => { fullname => undef } }
+
+B<oldpackage>: int
+   # will be passed to $trans->run to set RPMPROB_FILTER_OLDPACKAGE
+
+B<selected>: { id => { 
+     requested => bool, install => bool,
+     from => pkg, psel => pkg,
+     promote => name, unsatisfied => [ id|property ]
+ } }
+
+B<rejected>: { fullname => { 
+     size => int, removed => { fullname|"asked" => undef },
+     obsoleted => { fullname|"asked" => undef },
+     backtrack => { # those info are only used to display why package is unselected
+         promote => [ name ], keep => [ fullname ], 
+         unsatisfied => [ id|property ], 
+         conflicts => [ fullname ],
+     },
+     closure => { fullname => { old_requested => bool, 
+                                unsatisfied => [ id|property ],
+                                conflicts => property },
+                                avoid => bool },
+     },
+ } }
+
+B<rejected_already_installed>: { id => pkg }
+
+B<orphans_to_remove>: [ pkg ]
+
+B<whatrequires>: { name => { id => undef } }
+   # reversed requires_nosense for selected packages
+
+B<unselected_uninstalled>: [ pkg ]
+   # (old) packages which are needed, but installed package is newer
+
+more fields only used in build_transaction_set and its callers):
+
+B<transaction>: [ { upgrade => [ id ], remove => [ fullname ] } ]
+
+B<transaction_state>: $state object
 
 =head1 COPYRIGHT
 
 Copyright 2002, 2003, 2004, 2005 MandrakeSoft SA
 
-Copyright 2005, 2006 Mandriva SA
+Copyright 2005, 2006, 2007, 2008 Mandriva SA
 
-Original author: FranE<ccedil>ois Pons.
-Current maintainer: Rafael Garcia-Suarez
-<rgarciasuarez@mandriva.com>
+FranE<ccedil>ois Pons (original author), Rafael Garcia-Suarez, Pixel <pixel@mandriva.com> (current maintainer)
 
 This library is free software; you can redistribute it and/or modify it under
 the same terms as Perl itself.

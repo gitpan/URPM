@@ -5,7 +5,7 @@ use warnings ;
 use Test::More tests => 7;
 use URPM;
 
-my ($count, @all_pkgs_extern, %all_pkgs, @all_pkgs);
+my ($count, @all_pkgs_extern, @all_pkgs);
 my ($pkg_perl, $count_perl, $pkg_perl_extern);
 {
     my $db;
@@ -19,10 +19,9 @@ my ($pkg_perl, $count_perl, $pkg_perl_extern);
 	    my ($name, $version, $release, $arch) = $pkg->fullname;
 	    #- arch is void for -pubkey- package.
 	    my $fullname = "$name-$version-$release";
-	    $all_pkgs{$fullname}++;
+	    push @all_pkgs, $fullname;
 	    if ($name eq 'perl') { $pkg_perl_extern = $fullname }
 	});
-    @all_pkgs = keys %all_pkgs;
 
     $count_perl = $db->traverse_tag('name', ['perl'], sub {
 	    my ($pkg) = @_;
@@ -40,8 +39,8 @@ is($pkg_perl, $pkg_perl_extern, '... with the correct fullname');
 my @all_pkgs_sorted = sort { $a cmp $b } @all_pkgs;
 my $bad_pkgs = 0;
 foreach (0..$#all_pkgs_sorted) {
-    $all_pkgs_sorted[$_] eq $all_pkgs_extern[$_] or ++$bad_pkgs;
+    $all_pkgs_sorted[$_] eq $all_pkgs_extern[$_] and next;
+    diag($all_pkgs_extern[$_] . " vs " . $all_pkgs_sorted[$_]);
+    ++$bad_pkgs;
 }
-warn "# ".@all_pkgs_extern[0..3]."\n";
-warn "# ".@all_pkgs_sorted[0..3]."\n";
 is($bad_pkgs, 0, 'no mismatch between package lists');

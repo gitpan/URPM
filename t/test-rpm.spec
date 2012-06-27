@@ -1,4 +1,9 @@
-# $Id: test-rpm.spec 32205 2004-04-22 05:43:07Z othauvin $
+# $Id: test-rpm.spec 258552 2009-07-22 18:19:56Z peroyvind $
+
+# prevent distepoch & disttag to be added and appended to package filename
+%undefine distepoch
+%undefine disttag
+
 Summary: test rpm for perl-URPM test suite
 BuildArch: noarch
 Name: test-rpm

@@ -2,29 +2,47 @@
 
 use strict ;
 use warnings ;
-use Test::More tests => 86;
+use Test::More tests => 95;
 use URPM;
 
+chdir 't' if -d 't';
 my $file1 = 'synthesis.sample.cz';
+my $file2 = 'synthesis.sample-xz.cz';
 
+my $s = <<'EOF';
+@provides@glibc-devel == 6:2.2.4-25mdk
+@requires@/sbin/install-info@glibc == 2.2.4@kernel-headers@kernel-headers >= 2.2.1@/bin/sh@/bin/sh@/bin/sh@rpmlib(PayloadFilesHavePrefix) <= 4.0-1@rpmlib(CompressedFileNames) <= 3.0.4-1
+@conflicts@texinfo < 3.11@gcc < 2.96-0.50mdk
+@obsoletes@libc-debug@libc-headers@libc-devel@linuxthreads-devel@glibc-debug
+@info@glibc-devel-2.2.4-25mdk.i586@6@45692097@Development/C
+EOF
 open my $f, "| gzip -9 >$file1";
-print $f q{
-glibc-devel@provides@glibc-devel == 6:2.2.4-25mdk
-glibc-devel@requires@/sbin/install-info@glibc == 2.2.4@kernel-headers@kernel-headers >= 2.2.1@/bin/sh@/bin/sh@/bin/sh@rpmlib(PayloadFilesHavePrefix) <= 4.0-1@rpmlib(CompressedFileNames) <= 3.0.4-1
-glibc-devel@conflicts@texinfo < 3.11@gcc < 2.96-0.50mdk
-glibc-devel@obsoletes@libc-debug@libc-headers@libc-devel@linuxthreads-devel@glibc-debug
-glibc-devel@info@glibc-devel-2.2.4-25mdk.i586@6@45692097@Development/C
-};
+print $f $s;
+close $f;
+open my $f, "| xz -9 >$file2";
+print $f $s;
+$s =~ s/-devel//g;
+print $f $s;
 close $f;
 
-END { unlink $file1 }
+END { unlink $file1, $file2 }
 
-my $a = new URPM;
+my $a = URPM->new;
 ok($a);
 
-my ($first, $end) = $a->parse_synthesis($file1);
+my ($first, $end);
+
+($first, $end) = URPM->new->parse_synthesis($file2);
+ok($first == 0 && $end == 1, 'parse XZ synthesis');
+
+($first, $end) = URPM->new->parse_synthesis('empty_synthesis.cz');
+is("$first $end", "0 -1", 'parse empty synthesis');
+
+is(URPM->new->parse_synthesis('buggy_synthesis.cz'), undef, 'parse buggy synthesis');
+
+($first, $end) = $a->parse_synthesis($file1);
 ok($first == 0 && $end == 0);
-ok(@{$a->{depslist}} == 1);
+is(int @{$a->{depslist}}, 1);
 ok(keys(%{$a->{provides}}) == 3);
 ok(defined $a->{provides}{'glibc-devel'});
 ok(exists $a->{provides}{'/bin/sh'});
@@ -90,20 +108,26 @@ my @files = $pkg->files;
 ok(@files == 0);
 
 ok($pkg->compare("6:2.2.4-25mdk") == 0);
-ok($pkg->compare("2.2.4-25mdk") == 0);
-ok($pkg->compare("2.2.4") == 0);
+ok($pkg->compare("2.2.4-25mdk") > 0);
+ok($pkg->compare("6:2.2.4") == 0);
 ok($pkg->compare("2.2.3") > 0);
 ok($pkg->compare("2.2") > 0);
 ok($pkg->compare("2") > 0);
-ok($pkg->compare("2.2.4.0") < 0);
-ok($pkg->compare("2.2.5") < 0);
+ok($pkg->compare("2.2.4.0") > 0);
+ok($pkg->compare("2.2.5") > 0);
 ok($pkg->compare("2.1.7") > 0);
-ok($pkg->compare("2.3.1") < 0);
-ok($pkg->compare("2.2.31") < 0);
+ok($pkg->compare("2.3.1") > 0);
+ok($pkg->compare("2.2.31") > 0);
 ok($pkg->compare("2.2.4-25") > 0);
-ok($pkg->compare("2.2.4-25.1mdk") < 0);
+ok($pkg->compare("2.2.4-25.1mdk") > 0);
 ok($pkg->compare("2.2.4-24mdk") > 0);
-ok($pkg->compare("2.2.4-26mdk") < 0);
+ok($pkg->compare("2.2.4-26mdk") > 0);
+ok($pkg->compare("6:2.2.4-25.1mdk") < 0);
+ok($pkg->compare("6:2.2.4.0") < 0);
+ok($pkg->compare("6:2.2.5") < 0);
+ok($pkg->compare("6:2.2.31") < 0);
+ok($pkg->compare("6:2.3.1") < 0);
+ok($pkg->compare("6:2.2.4-24mdk") > 0);
 ok($pkg->compare("6:2.2.4-26mdk") < 0);
 ok($pkg->compare("7:2.2.4-26mdk") < 0);
 ok($pkg->compare("7:2.2.4-24mdk") < 0);
