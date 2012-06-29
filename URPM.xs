@@ -1312,25 +1312,25 @@ static void *rpmRunTransactions_callback(__attribute__((unused)) const void *h,
   return callback == td->callback_open ? fd : NULL;
 }
 
-static rpmTag
+static rpmDbiTag
 rpmtag_from_string(char *tag)
 {
     if (!strcmp(tag, "name"))
-      return RPMTAG_NAME;
+      return RPMDBI_NAME;
     else if (!strcmp(tag, "whatprovides"))
-      return RPMTAG_PROVIDENAME;
+      return RPMDBI_PROVIDENAME;
     else if (!strcmp(tag, "whatrequires"))
-      return RPMTAG_REQUIRENAME;
+      return RPMDBI_REQUIRENAME;
     else if (!strcmp(tag, "whatconflicts"))
-      return RPMTAG_CONFLICTNAME;
+      return RPMDBI_CONFLICTNAME;
     else if (!strcmp(tag, "group"))
-      return RPMTAG_GROUP;
+      return RPMDBI_GROUP;
     else if (!strcmp(tag, "triggeredby"))
-      return RPMTAG_TRIGGERNAME;
+      return RPMDBI_TRIGGERNAME;
     else if (!strcmp(tag, "path"))
-      return RPMTAG_BASENAMES;
+      return RPMDBI_BASENAMES;
     else if (!strcmp(tag, "nvra"))
-      return RPMTAG_NVRA;
+      return RPMDBI_LABEL;
     else croak("unknown tag [%s]", tag);
 }
 
@@ -2416,7 +2416,7 @@ Db_traverse_tag(db,tag,names,callback)
     AV* names_av = (AV*)SvRV(names);
     int len = av_len(names_av);
     int i;
-    rpmTag rpmtag = rpmtag_from_string(tag);
+    rpmDbiTag rpmtag = rpmtag_from_string(tag);
 
     for (i = 0; i <= len; ++i) {
       STRLEN str_len;
@@ -2450,7 +2450,7 @@ Db_traverse_tag_find(db,tag,name,callback)
   Header header;
   rpmdbMatchIterator mi;
   CODE:
-  rpmTag rpmtag = rpmtag_from_string(tag);
+  rpmDbiTag rpmtag = rpmtag_from_string(tag);
   int found = 0;
   rpmVSFlags ovsflags;
   db->ts = rpmtsLink(db->ts);

@@ -1,3 +1,7 @@
+Version 4.10 - 29 June 2012
+
+- really enable to traverse rpm db by fullname
+
 Version 4.9 - 25 June 2012
 
 - fix setting rflags on packages (mga#6532)
