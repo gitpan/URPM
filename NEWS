@@ -1,3 +1,20 @@
+Version 4.13 - 23 August 2012
+
+- add an alias to Pkg_files to only list doc files. This avoids pushing more 
+  than 50k strings on the stack to check if texmf has a README.urpmi
+
+Version 4.12 - 11 August 2012
+
+- do not try to parse current pointer when the line is invalid or
+  empty (detected by valgrind)
+- don't read/write after the string when the synthesis is slightly
+  malformed
+
+Version 4.11 - 10 August 2012
+
+- drop compatibility with urpmi <= 4.5-13mdk (2004-07-09)
+- fix arch of spec headers (regression introduced in 4.8)
+
 Version 4.10 - 29 June 2012
 
 - really enable to traverse rpm db by fullname

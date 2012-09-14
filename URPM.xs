@@ -97,6 +97,7 @@ typedef struct s_Package* URPM__Package;
 
 
 #define FILTER_MODE_ALL_FILES     0
+#define FILTER_MODE_DOC_FILES     1
 #define FILTER_MODE_CONF_FILES    2
 
 static ssize_t write_nocheck(int fd, const void *buf, size_t count) {
@@ -643,6 +644,7 @@ return_files(const Header header, int filter_mode) {
 
       if (filter_mode) {
 	if ((filter_mode & FILTER_MODE_CONF_FILES) && flags && (flags[i] & RPMFILE_CONFIG) == 0) continue;
+	if ((filter_mode & FILTER_MODE_DOC_FILES) && flags && (flags[i] & RPMFILE_DOC) == 0) continue;
       }
 
       mXPUSHs(newSVpv(s, len));
@@ -1759,7 +1761,7 @@ Pkg_filename(pkg)
   if (pkg->info) {
     char *eon;
 
-    if ((eon = strchr(pkg->info, '@')) != NULL) {
+    if ((eon = strchr(pkg->info, '@')) != NULL && strlen(eon) >= 3) {
 	char savbuf[4];
 	memcpy(savbuf, eon, 4); /* there should be at least epoch and size described so (@0@0 minimum) */
 	memcpy(eon, ".rpm", 4);
@@ -1972,10 +1974,11 @@ void
 Pkg_files(pkg)
   URPM::Package pkg
   ALIAS:
-    conf_files     = 1
+    conf_files     = FILTER_MODE_CONF_FILES
+    doc_files      = FILTER_MODE_DOC_FILES
   PPCODE:
   PUTBACK;
-  return_files(pkg->h, ix == 0 ? 0 : FILTER_MODE_CONF_FILES);
+  return_files(pkg->h, ix);
   SPAGAIN;
 
 void
@@ -2897,7 +2900,8 @@ Urpm_parse_synthesis__XS(urpm, filename, ...)
 	    p = &buff[buff_len-(p-buff)];
 	}
         // EOF:
-        if (!parse_line(depslist, provides, obsoletes, &pkg, p, urpm, callback))
+        if (ok && buff_len > 0
+            && !parse_line(depslist, provides, obsoletes, &pkg, p, urpm, callback))
              ok = 0;
 	if (Fclose(f) != 0) ok = 0;
 	SPAGAIN;
@@ -3279,9 +3283,6 @@ Urpm_spec2srcheader(specfile)
     header = rpmSpecSourceHeader(spec);
     SV *sv_pkg;
     pkg = (URPM__Package)calloc(1, sizeof(struct s_Package));
-    headerPutString(header, RPMTAG_SOURCERPM, "");
-      /* parseSpec() sets RPMTAG_ARCH to %{_target_cpu} whereas we really a header similar to .src.rpm header */
-    headerPutString(header, RPMTAG_ARCH, "src");
     pkg->h = headerLink(header);
     sv_pkg = sv_newmortal();
     sv_setref_pv(sv_pkg, "URPM::Package", (void*)pkg);

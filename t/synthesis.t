@@ -16,10 +16,12 @@ my $s = <<'EOF';
 @obsoletes@libc-debug@libc-headers@libc-devel@linuxthreads-devel@glibc-debug
 @info@glibc-devel-2.2.4-25mdk.i586@6@45692097@Development/C
 EOF
+
 open my $f, "| gzip -9 >$file1";
 print $f $s;
 close $f;
-open my $f, "| xz -9 >$file2";
+
+open $f, "| xz -9 >$file2";
 print $f $s;
 $s =~ s/-devel//g;
 print $f $s;
