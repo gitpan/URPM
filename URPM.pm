@@ -11,7 +11,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '4.13';
+our $VERSION = '4.14';
 
 URPM->bootstrap($VERSION);
 
@@ -471,10 +471,10 @@ Quite similar to C<traverse_tag>, but stops when $callback returns true.
 
 (also note that only one $name is handled)
 
-=item $db->create_transaction($prefix)
+=item $db->create_transaction()
 
 Creates and returns a new transaction (an C<URPM::Transaction> object) on the
-specified DB. For $prefix, cf L<open>.
+specified DB.
 
 =back
 
@@ -887,7 +887,9 @@ Copyright 2002, 2003, 2004, 2005 MandrakeSoft SA
 
 Copyright 2005, 2006, 2007, 2008 Mandriva SA
 
-FranE<ccedil>ois Pons (original author), Rafael Garcia-Suarez, Pixel <pixel@mandriva.com> (current maintainer)
+Copyright 2011, 2012, Mangeia
+
+FranE<ccedil>ois Pons (original author), Rafael Garcia-Suarez, Pixel, Thierry Vignaud <tv@mageia.org> (current maintainer)
 
 This library is free software; you can redistribute it and/or modify it under
 the same terms as Perl itself.

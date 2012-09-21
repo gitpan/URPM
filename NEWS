@@ -1,3 +1,9 @@
+Version 4.14 - 21 September 2012
+
+- API: add resolve_requested_suggests()
+- slightly increase testsuite coverage
+- update outdated doc 
+
 Version 4.13 - 23 August 2012
 
 - add an alias to Pkg_files to only list doc files. This avoids pushing more 

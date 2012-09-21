@@ -882,13 +882,20 @@ sub resolve_requested {
     my @selected = resolve_requested__no_suggests($urpm, $db, $state, $requested, %options);
 
     if (!$options{no_suggests}) {
-	my @todo = @selected;
+        @selected = resolve_requested_suggests($urpm, $db, $state, \@selected, %options);
+    }
+    @selected;
+}
+
+sub resolve_requested_suggests {
+    my ($urpm, $db, $state, $selected, %options) = @_;
+	my @todo = @$selected;
 	while (@todo) {
 	    my $pkg = shift @todo;
 	    my %suggests = map { $_ => 1 } $pkg->suggests or next;
 
 	    #- do not install a package that has already been suggested
-	    $db->traverse_tag('name', [ $pkg->name ], sub {
+	    $db->traverse_tag_find('name', $pkg->name, sub {
 		my ($p) = @_;
 		delete $suggests{$_} foreach $p->suggests;
 	    });
@@ -908,11 +915,11 @@ sub resolve_requested {
 	    my %new_requested = map { $_ => undef } keys %suggests;
 	    my @new_selected = resolve_requested__no_suggests_($urpm, $db, $state, \%new_requested, %options);
 	    $state->{selected}{$_->id}{suggested} = 1 foreach @new_selected;
-	    push @selected, @new_selected;
+	    push @$selected, @new_selected;
 	    push @todo, @new_selected;
 	}
-    }
-    @selected;
+
+    @$selected;
 }
 
 #- Resolve dependencies of requested packages; keep resolution state to
