@@ -11,7 +11,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '4.14';
+our $VERSION = '4.15';
 
 URPM->bootstrap($VERSION);
 
@@ -531,6 +531,8 @@ This is only used when faking a URPM::DB: $urpm can be used as-a $db
 =item $package->distribution()
 
 =item $package->epoch()
+
+=item $package->EVR()
 
 =item $package->excludearchs()
 

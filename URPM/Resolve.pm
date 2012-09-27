@@ -11,6 +11,11 @@ use Config;
 # perl_checker: require URPM
 
 #- a few functions from MDK::Common copied here:
+sub any(&@) {
+    my $f = shift;
+    $f->($_) and return 1 foreach @_;
+    0;
+}
 sub listlength {
     my (@l) = @_;
     scalar @l;
@@ -63,7 +68,7 @@ sub removed_or_obsoleted_packages {
 #- (nb: see also find_required_package())
 #-
 #- side-effects: none
-sub find_candidate_packages_ {
+sub find_candidate_packages {
     my ($urpm, $id_prop, $o_rejected) = @_;
     my @packages;
 
@@ -90,19 +95,6 @@ sub find_candidate_packages_ {
     @packages;
 }
 
-#- deprecated, use find_candidate_packages_() directly
-#-
-#- side-effects: none
-sub find_candidate_packages {
-    my ($urpm, $id_prop, $o_rejected) = @_;
-
-    my %packages;
-    foreach (find_candidate_packages_($urpm, $id_prop, $o_rejected)) {
-	push @{$packages{$_->name}}, $_;
-    }
-    \%packages;
-}
-
 #- returns the "arch" of package $n in rpm db
 sub get_installed_arch {
     my ($db, $n) = @_;
@@ -125,11 +117,12 @@ my %installed_arch;
 #- side-effects: none (but uses a cache)
 sub strict_arch_check_installed {
     my ($db, $pkg) = @_;
-    if ($pkg->arch ne 'src' && $pkg->arch ne 'noarch') {
+    my $arch = $pkg->arch;
+    if ($arch ne 'src' && $arch ne 'noarch') {
 	my $n = $pkg->name;
 	defined $installed_arch{$n} or $installed_arch{$n} = get_installed_arch($db, $n);
 	if ($installed_arch{$n} && $installed_arch{$n} ne 'noarch') {
-	    $pkg->arch eq $installed_arch{$n} or return;
+	    $arch eq $installed_arch{$n} or return;
 	}
     }
     1;
@@ -141,9 +134,11 @@ sub strict_arch_check_installed {
 #- side-effects: none
 sub strict_arch_check {
     my ($installed_pkg, $pkg) = @_;
-    if ($pkg->arch ne 'src' && $pkg->arch ne 'noarch') {
-	if ($installed_pkg->arch ne 'noarch') {
-	    $pkg->arch eq $installed_pkg->arch or return;
+    my $arch = $pkg->arch;
+    if ($arch ne 'src' && $arch ne 'noarch') {
+	my $inst_arch = $installed_pkg->arch;
+	if ($inst_arch ne 'noarch') {
+	    $arch eq $inst_arch or return;
 	}
     }
     1;
@@ -189,12 +184,9 @@ sub provided_version_that_overlaps {
     $version;
 }
 
-#- deprecated function, use find_required_package()
-sub find_chosen_packages { &find_required_package }
-
 #- find the package (or packages) to install matching $id_prop
 #- returns (list ref of matches, list ref of preferred matches)
-#- (see also find_candidate_packages_())
+#- (see also find_candidate_packages())
 #-
 #- side-effects: flag_install, flag_upgrade (and strict_arch_check_installed cache)
 sub find_required_package {
@@ -359,7 +351,7 @@ sub _find_required_package__kmod {
     $choices->[0]->name =~ /^dkms-|-kernel-\d\./ or return;
 
     grep {
-	if (my ($_name, $version, $flavor, $release) = $_->name =~ /(.*)-kernel-(\d\..*)-(.*)-(.*)/) {
+	if (my ($version, $flavor, $release) = $_->name =~ /(:?.*)-kernel-(\d\..*)-(.*)-(.*)/) {
 	    my $kernel = "kernel-$flavor-$version-$release";
 	    _is_selected_or_installed($urpm, $db, $kernel);
 	} elsif ($_->name =~ /^dkms-/) {
@@ -388,7 +380,7 @@ sub _score_for_locales {
 	  } else {
 	      0; # bad locale
 	  }
-    } elsif (grep { /locales-en/ } @r) {
+    } elsif (any { /locales-en/ } @r) {
 	2; # 
     } else {
 	1;
@@ -581,7 +573,7 @@ sub backtrack_selected {
 
 	    #- search for all possible packages, first is to try the selection, then if it is
 	    #- impossible, backtrack the origin.
-	    my @packages = find_candidate_packages_($urpm, $dep->{required});
+	    my @packages = find_candidate_packages($urpm, $dep->{required});
 
 	    foreach (@packages) {
 		    #- avoid dead loop.
@@ -944,7 +936,7 @@ sub resolve_requested__no_suggests {
 
     foreach (keys %$requested) {
 	#- keep track of requested packages by propating the flag.
-	foreach (find_candidate_packages_($urpm, $_)) {
+	foreach (find_candidate_packages($urpm, $_)) {
 	    $_->set_flag_requested;
 	}
     }
@@ -1078,7 +1070,7 @@ sub resolve_requested__no_suggests_ {
 sub _handle_conflicts_with_selected {
     my ($urpm, $db, $state, $pkg, $dep, $properties, $diff_provides, %options) = @_;
     foreach ($pkg->conflicts) {
-	if (my ($n, $_o, $_v) = property2name_op_version($_)) {
+	if (my $n = property2name($_)) {
 	    foreach my $p ($urpm->packages_providing($n)) {
 		$pkg == $p and next;
 		$p->provides_overlap($_) or next;
@@ -1271,7 +1263,7 @@ sub _handle_diff_provides {
 	#- try if upgrading the package will be satisfying all the requires...
 	#- there is no need to avoid promoting epoch as the package examined is not
 	#- already installed.
-	my @packages = find_candidate_packages_($urpm, $p->name, $state->{rejected});
+	my @packages = find_candidate_packages($urpm, $p->name, $state->{rejected});
 	@packages = 
 	  grep { ($_->name eq $p->name ? $p->compare_pkg($_) < 0 :
 		    $_->obsoletes_overlap($p->name . " == " . $p->epoch . ":" . $p->version . "-" . $p->release))
@@ -1291,7 +1283,7 @@ sub _handle_diff_provides {
 	    #- there exists enough packages that provided the unsatisfied requires.
 	    my @best;
 	    foreach (@unsatisfied) {
-		my @packages = find_candidate_packages_($urpm, $_, $state->{rejected});
+		my @packages = find_candidate_packages($urpm, $_, $state->{rejected});
 		if (@packages = grep { $_->fullname ne $p->fullname } @packages) {
 		    push @best, join('|', map { $_->id } @packages);
 		}
@@ -1331,7 +1323,7 @@ sub _handle_conflict {
     #- whether a newer version will be ok, else ask to remove the old.
     my $need_deps = $p->name . " > " . ($p->epoch ? $p->epoch . ":" : "") .
       $p->version . "-" . $p->release;
-    my @packages = grep { $_->name eq $p->name } find_candidate_packages_($urpm, $need_deps, $state->{rejected});
+    my @packages = grep { $_->name eq $p->name } find_candidate_packages($urpm, $need_deps, $state->{rejected});
     @packages = grep { ! $_->provides_overlap($property) } @packages;
 
     if (!@packages) {
@@ -1719,7 +1711,7 @@ sub request_packages_to_upgrade {
 		$pkg = undef;
 	    }
 	}
-	if ($pkg && $options{idlist} && !grep { $pkg->id == $_ } @{$options{idlist}}) {
+	if ($pkg && $options{idlist} && !any { $pkg->id == $_ } @{$options{idlist}}) {
 		$urpm->{debug_URPM}("not auto-selecting " . $pkg->fullname . "because it's not in search medias") if $urpm->{debug_URPM};
 		$pkg = undef;
 	} 
@@ -1809,7 +1801,7 @@ sub sort_graph {
 		# don't care
 	    } elsif (exists $added{$p_id}) {
 		# already done
-	    } elsif (grep { $_ == $p_id } @ids) {
+	    } elsif (any { $_ == $p_id } @ids) {
 		my $begin = 1;
 		my @l = grep { $begin &&= $_ != $p_id } @ids;
 		$loop_ahead = 1;

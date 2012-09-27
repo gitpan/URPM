@@ -1,3 +1,10 @@
+Version 4.15 - 26 September 2012
+
+- API:
+  o add EVR method
+  o remove long deprecated find_chosen_packages() & find_candidate_packages()
+  o rename find_candidate_packages_() as find_candidate_packages()
+
 Version 4.14 - 21 September 2012
 
 - API: add resolve_requested_suggests()

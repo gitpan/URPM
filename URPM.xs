@@ -1437,6 +1437,36 @@ Pkg_release(pkg)
   }
 
 void
+Pkg_EVR(pkg)
+  URPM::Package pkg
+  PPCODE:
+    if (pkg->info) {
+      char *s, *eos;
+      char *version, *arch;
+      int epoch;
+
+      if ((s = strchr(pkg->info, '@')) != NULL) {
+	if ((eos = strchr(s+1, '@')) != NULL)
+          *eos = 0; /* mark end of string to enable searching backwards */
+	epoch = atoi(s+1);
+	if (eos != NULL) *eos = '@';
+      } else
+	epoch = 0;
+      get_fullname_parts(pkg, NULL, &version, NULL, &arch, &eos);
+      if (epoch == 0)
+         mXPUSHs(newSVpv(version, arch-version-1));
+      else {
+         char *res;
+         arch--;
+         *arch = '\0';
+         asprintf(&res, "%d:%s", epoch, version);
+         mXPUSHs(newSVpv(res, 0));
+         *arch = '.'; /* restore info string modified */
+      }
+    } else if (pkg->h)
+         mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_EVR), 0));
+
+void
 Pkg_arch(pkg)
   URPM::Package pkg
   PPCODE:
