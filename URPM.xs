@@ -2749,8 +2749,6 @@ Trans_run(trans, data, ...)
       raw_message = 1;
     } else if (len == 12 && !memcmp(s, "replacefiles", 12)) {
       if (SvIV(ST(i+1))) probFilter |= RPMPROB_FILTER_REPLACEOLDFILES | RPMPROB_FILTER_REPLACENEWFILES;
-    } else if (len == 9 && !memcmp(s, "repackage", 9)) {
-      if (SvIV(ST(i+1))) transFlags |= RPMTRANS_FLAG_REPACKAGE;
     } else if (len == 6 && !memcmp(s, "justdb", 6)) {
       if (SvIV(ST(i+1))) transFlags |= RPMTRANS_FLAG_JUSTDB;
     } else if (len == 10 && !memcmp(s, "ignorearch", 10)) {
@@ -2772,12 +2770,6 @@ Trans_run(trans, data, ...)
     }
   }
   /* check macros */
-  {
-    char *repa = rpmExpand("%_repackage_all_erasures", NULL);
-    if (repa && *repa && *repa != '0')
-      transFlags |= RPMTRANS_FLAG_REPACKAGE;
-    if (repa) free(repa);
-  }
   rpmtsSetFlags(trans->ts, transFlags);
   trans->ts = rpmtsLink(trans->ts);
   rpmtsSetNotifyCallback(trans->ts, rpmRunTransactions_callback, &td);
