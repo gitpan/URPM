@@ -1,3 +1,7 @@
+Version 4.16 - 16 November 2012
+
+- prevent urpmi from looping forever when some packages are broken
+
 Version 4.15.1 - 11 October 2012
 
 - drop support for repackage (non working since rpm-4.6 in 2009)

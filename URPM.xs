@@ -77,8 +77,23 @@ typedef struct s_Transaction* URPM__DB;
 typedef struct s_Transaction* URPM__Transaction;
 typedef struct s_Package* URPM__Package;
 
-#define FLAG_ID               0x001fffffU
-#define FLAG_RATE             0x00e00000U
+/*
+ * URPM__Package->flag is an unsigned int:
+ * bit :  significance
+ * 0..20: ID
+ * 21-23: rate
+ * 24:    BASE
+ * 25:    SKIP
+ * 26:    DISABLE_OBSOLETE
+ * 27:    INSTALLED
+ * 28:    REQUESTED
+ * 29:    REQUIRED
+ * 30:    UPGRADE
+ * 31:    NO_HEADER_FREE
+ * */
+
+#define FLAG_ID_MASK          0x001fffffU
+#define FLAG_RATE_MASK        0x00e00000U
 #define FLAG_BASE             0x01000000U
 #define FLAG_SKIP             0x02000000U
 #define FLAG_DISABLE_OBSOLETE 0x04000000U
@@ -103,10 +118,6 @@ typedef struct s_Package* URPM__Package;
 static ssize_t write_nocheck(int fd, const void *buf, size_t count) {
   return write(fd, buf, count);
 }
-static const void* unused_variable(const void *p) {
-  return p;
-}
-
 static int rpmError_callback_data;
 
 static int rpmError_callback() {
@@ -114,7 +125,7 @@ static int rpmError_callback() {
   return RPMLOG_DEFAULT;
 }
 
-static inline int _run_cb_while_traversing(SV *callback, Header header) {
+static inline int _run_cb_while_traversing(SV *callback, Header header, VOL I32 flags) {
      dSP;
      URPM__Package pkg = calloc(1, sizeof(struct s_Package));
 
@@ -125,7 +136,7 @@ static inline int _run_cb_while_traversing(SV *callback, Header header) {
      mXPUSHs(sv_setref_pv(newSVpvs(""), "URPM::Package", pkg));
      PUTBACK;
 
-     int count = call_sv(callback, G_SCALAR);
+     int count = call_sv(callback, G_SCALAR | flags);
 
      SPAGAIN;
      pkg->h = NULL; /* avoid using it anymore, in case it has been copied inside callback */
@@ -724,14 +735,14 @@ return_problems(rpmps ps, int translate_message, int raw_message) {
 static char *
 pack_list(const Header header, rpmTag tag_name, rpmTag tag_flags, rpmTag tag_version) {
   char buff[65536];
-  rpmTag *flags = NULL;
-  char **list_evr = NULL;
-  unsigned int i;
   char *p = buff;
 
   struct rpmtd_s td;
   if (headerGet(header, tag_name, &td, HEADERGET_DEFAULT)) {
     char **list = td.data;
+    char **list_evr = NULL;
+    rpmTag *flags = NULL;
+    unsigned int i;
     
     struct rpmtd_s td_flags, td_list_evr;
     if (tag_flags   && headerGet(header, tag_flags,   &td_flags, HEADERGET_DEFAULT))    flags    = td_flags.data;
@@ -807,7 +818,7 @@ update_hash_entry(HV *hash, const char *name, STRLEN len, int force, IV use_sens
     }
     if (isv && *isv != &PL_sv_undef) {
       char id[8];
-      STRLEN id_len = snprintf(id, sizeof(id), "%d", pkg->flag & FLAG_ID);
+      STRLEN id_len = snprintf(id, sizeof(id), "%d", pkg->flag & FLAG_ID_MASK);
       SV **sense = hv_fetch((HV*)SvRV(*isv), id, id_len, 1);
       if (sense && use_sense) sv_setiv(*sense, use_sense);
     }
@@ -824,7 +835,6 @@ update_provides(const URPM__Package pkg, HV *provides) {
   if (pkg->h) {
     int len;
     struct rpmtd_s td, td_flags;
-    rpmsenseFlags *flags = NULL;
     unsigned int i;
 
     /* examine requires for files which need to be marked in provides */
@@ -839,6 +849,7 @@ update_provides(const URPM__Package pkg, HV *provides) {
     /* update all provides */
     if (headerGet(pkg->h, RPMTAG_PROVIDENAME, &td, HEADERGET_DEFAULT)) {
       char **list = td.data;
+      rpmsenseFlags *flags = NULL;
       if (headerGet(pkg->h, RPMTAG_PROVIDEFLAGS, &td_flags, HEADERGET_DEFAULT))
 	flags = td_flags.data;
       for (i = 0; i < rpmtdCount(&td); ++i) {
@@ -1026,21 +1037,19 @@ call_package_callback(SV *urpm, SV *sv_pkg, SV *callback) {
 
 static int
 parse_line(AV *depslist, HV *provides, HV *obsoletes, URPM__Package pkg, char *buff, SV *urpm, SV *callback) {
-  SV *sv_pkg;
-  URPM__Package _pkg;
   char *tag, *data;
-  int data_len;
 
   if (buff[0] == 0)
     return 1;
   else if ((tag = buff)[0] == '@' && (data = strchr(tag+1, '@')) != NULL) {
     *tag++ = *data++ = 0;
-    data_len = 1+strlen(data);
+    int data_len = 1+strlen(data);
     if (!strcmp(tag, "info")) {
       pkg->info = memcpy(malloc(data_len), data, data_len);
-      pkg->flag &= ~FLAG_ID;
+      pkg->flag &= ~FLAG_ID_MASK;
       pkg->flag |= 1 + av_len(depslist);
-      sv_pkg = sv_setref_pv(newSVpvs(""), "URPM::Package",
+      URPM__Package _pkg;
+      SV *sv_pkg = sv_setref_pv(newSVpvs(""), "URPM::Package",
 			    _pkg = memcpy(malloc(sizeof(struct s_Package)), pkg, sizeof(struct s_Package)));
       if (call_package_callback(urpm, sv_pkg, callback)) {
 	if (provides) update_provides(_pkg, provides);
@@ -1830,17 +1839,19 @@ void
 Pkg_id(pkg)
   URPM::Package pkg
   PPCODE:
-  if ((pkg->flag & FLAG_ID) <= FLAG_ID_MAX)
-    mXPUSHs(newSViv(pkg->flag & FLAG_ID));
+  int id = pkg->flag & FLAG_ID_MASK;
+  if (id <= FLAG_ID_MAX)
+    mXPUSHs(newSViv(id));
 
 void
 Pkg_set_id(pkg, id=-1)
   URPM::Package pkg
   int id
   PPCODE:
-  if ((pkg->flag & FLAG_ID) <= FLAG_ID_MAX)
-    mXPUSHs(newSViv(pkg->flag & FLAG_ID));
-  pkg->flag &= ~FLAG_ID;
+  int old_id = pkg->flag & FLAG_ID_MASK;
+  if (old_id <= FLAG_ID_MAX)
+    mXPUSHs(newSViv(old_id));
+  pkg->flag &= ~FLAG_ID_MASK;
   pkg->flag |= id >= 0 && id <= FLAG_ID_MAX ? id : FLAG_ID_INVALID;
 
 void
@@ -2280,7 +2291,7 @@ int
 Pkg_rate(pkg)
   URPM::Package pkg
   CODE:
-  RETVAL = (pkg->flag & FLAG_RATE) >> FLAG_RATE_POS;
+  RETVAL = (pkg->flag & FLAG_RATE_MASK) >> FLAG_RATE_POS;
   OUTPUT:
   RETVAL
 
@@ -2289,8 +2300,8 @@ Pkg_set_rate(pkg, rate)
   URPM::Package pkg
   int rate
   CODE:
-  RETVAL = (pkg->flag & FLAG_RATE) >> FLAG_RATE_POS;
-  pkg->flag &= ~FLAG_RATE;
+  RETVAL = (pkg->flag & FLAG_RATE_MASK) >> FLAG_RATE_POS;
+  pkg->flag &= ~FLAG_RATE_MASK;
   pkg->flag |= (rate >= 0 && rate <= FLAG_RATE_MAX ? rate : FLAG_RATE_INVALID) << FLAG_RATE_POS;
   OUTPUT:
   RETVAL
@@ -2421,9 +2432,8 @@ Db_traverse(db,callback)
   ovsflags = ts_nosignature(db->ts);
   mi = rpmtsInitIterator(db->ts, RPMDBI_PACKAGES, NULL, 0);
   while ((header = rpmdbNextIterator(mi))) {
-    if (SvROK(callback)) {
-         _run_cb_while_traversing(callback, header);
-    }
+    if (SvROK(callback))
+         _run_cb_while_traversing(callback, header, G_DISCARD);
     ++count;
   }
   rpmdbFreeIterator(mi);
@@ -2459,9 +2469,8 @@ Db_traverse_tag(db,tag,names,callback)
       ovsflags = ts_nosignature(db->ts);
       mi = rpmtsInitIterator(db->ts, rpmtag, name, str_len);
       while ((header = rpmdbNextIterator(mi))) {
-	if (SvROK(callback)) {
-	  _run_cb_while_traversing(callback, header);
-	}
+	if (SvROK(callback))
+	  _run_cb_while_traversing(callback, header, G_DISCARD);
 	++count;
       }
       (void)rpmdbFreeIterator(mi);
@@ -2490,7 +2499,7 @@ Db_traverse_tag_find(db,tag,name,callback)
   ovsflags = ts_nosignature(db->ts);
   mi = rpmtsInitIterator(db->ts, rpmtag, name, 0);
   while ((header = rpmdbNextIterator(mi))) {
-      int count = _run_cb_while_traversing(callback, header);
+      int count = _run_cb_while_traversing(callback, header, 0);
 
       if (count == 1 && POPi) {
 	found = 1;
@@ -2538,7 +2547,7 @@ Trans_add(trans, pkg, ...)
   URPM::Transaction trans
   URPM::Package pkg
   CODE:
-  if ((pkg->flag & FLAG_ID) <= FLAG_ID_MAX && pkg->h != NULL) {
+  if ((pkg->flag & FLAG_ID_MASK) <= FLAG_ID_MAX && pkg->h != NULL) {
     int update = 0;
     rpmRelocation *relocations = NULL;
     if (items > 3) {
@@ -2563,7 +2572,7 @@ Trans_add(trans, pkg, ...)
 	}
       }
     }
-    RETVAL = rpmtsAddInstallElement(trans->ts, pkg->h, (fnpyKey)(1+(long)(pkg->flag & FLAG_ID)), update, relocations) == 0;
+    RETVAL = rpmtsAddInstallElement(trans->ts, pkg->h, (fnpyKey)(1+(long)(pkg->flag & FLAG_ID_MASK)), update, relocations) == 0;
     /* free allocated memory, check rpm is copying it just above, at least in 4.0.4 */
     free(relocations);
   } else RETVAL = 0;
@@ -2603,18 +2612,8 @@ Trans_traverse(trans, callback)
   CODE:
   mi = rpmtsInitIterator(trans->ts, RPMDBI_PACKAGES, NULL, 0);
   while ((h = rpmdbNextIterator(mi))) {
-    if (SvROK(callback)) {
-      dSP;
-      URPM__Package pkg = calloc(1, sizeof(struct s_Package));
-      pkg->flag = FLAG_ID_INVALID | FLAG_NO_HEADER_FREE;
-      pkg->h = h;
-      PUSHMARK(SP);
-      mXPUSHs(sv_setref_pv(newSVpvs(""), "URPM::Package", pkg));
-      PUTBACK;
-      call_sv(callback, G_DISCARD | G_SCALAR);
-      SPAGAIN;
-      pkg->h = NULL; /* avoid using it anymore, in case it has been copied inside callback */
-    }
+    if (SvROK(callback))
+      _run_cb_while_traversing(callback, h, G_DISCARD);
     ++c;
   }
   rpmdbFreeIterator(mi);
@@ -2769,7 +2768,6 @@ Trans_run(trans, data, ...)
       }
     }
   }
-  /* check macros */
   rpmtsSetFlags(trans->ts, transFlags);
   trans->ts = rpmtsLink(trans->ts);
   rpmtsSetNotifyCallback(trans->ts, rpmRunTransactions_callback, &td);
@@ -3132,10 +3130,7 @@ Urpm_verify_rpm(filename, ...)
     ts = rpmtsCreate();
     rpmtsSetRootDir(ts, "/");
     rpmtsOpenDB(ts, O_RDONLY);
-    if (rpmVerifySignatures(&qva, ts, fd, filename))
-      RETVAL = 0;
-    else
-      RETVAL = 1;
+    RETVAL = rpmVerifySignatures(&qva, ts, fd, filename) ? 0 : 1;
     Fclose(fd);
     (void)rpmtsFree(ts);
   }
