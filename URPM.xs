@@ -1814,27 +1814,6 @@ Pkg_filename(pkg)
     mXPUSHs(newSVpvf("%s.%s.rpm", nvr, arch));
   }
 
-# deprecated
-void
-Pkg_header_filename(pkg)
-  URPM::Package pkg
-  PPCODE:
-  if (pkg->info) {
-    char *eon;
-
-    if ((eon = strchr(pkg->info, '@')) != NULL) {
-      mXPUSHs(newSVpv(pkg->info, eon-pkg->info));
-    }
-  } else if (pkg->h) {
-    char buff[1024];
-    char *p = buff;
-    char *nvr = headerGetAsString(pkg->h, RPMTAG_NVR);
-    char *arch = get_arch(pkg->h);
-
-    p += snprintf(buff, sizeof(buff), "%s.%s", nvr, arch);
-    mXPUSHs(newSVpv(buff, p-buff));
-  }
-
 void
 Pkg_id(pkg)
   URPM::Package pkg

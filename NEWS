@@ -1,3 +1,8 @@
+Version 4.17 - 19 November 2012
+
+- bump threshold for detecting looping forever (mga#8106)
+- drop header_filename (long obsolete, no more use)
+
 Version 4.16 - 16 November 2012
 
 - prevent urpmi from looping forever when some packages are broken
