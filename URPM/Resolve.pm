@@ -491,14 +491,14 @@ sub unsatisfied_requires {
 	    #- check on installed system if a package which is not obsoleted is satisfying the require.
 	    my $satisfied = 0;
 	    if ($n =~ m!^/!) {
-		$db->traverse_tag_find('path', $n, sub {
+		$db->traverse_tag('path', [ $n ], sub {
 		    my ($p) = @_;
 		    exists $state->{rejected}{$p->fullname} and return;
 		    $state->{cached_installed}{$n}{$p->fullname} = undef;
 		    ++$satisfied;
 		});
 	    } else {
-		$db->traverse_tag_find('whatprovides', $n, sub {
+		$db->traverse_tag('whatprovides', [ $n ], sub {
 		    my ($p) = @_;
 		    exists $state->{rejected}{$p->fullname} and return;
 		    foreach ($p->provides) {
@@ -1057,7 +1057,7 @@ sub resolve_requested__no_suggests_ {
 	}
 
 	# safety:
-	if ($count++ > 10000) {
+	if ($count++ > 50000) {
 	    die("detecting looping forever while trying to resolve dependancies.\n"
 		. "Aborting... Try again with '-vv --debug' options");
 	}
