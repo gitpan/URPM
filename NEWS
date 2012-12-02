@@ -1,3 +1,8 @@
+Version 4.18 - 2 - 2 December 2012
+
+- kill pkg->disttag (unused, introduced for rpm5 prior to the fork)
+- reduce code size
+
 Version 4.18 - 21 November 2012
 
 - further bump threshold for detecting looping forever

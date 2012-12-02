@@ -11,7 +11,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '4.18';
+our $VERSION = '4.19';
 
 URPM->bootstrap($VERSION);
 
@@ -810,6 +810,12 @@ Delete a macro.
 
 Destroys macros.
 
+=back
+
+=head2 Misc other functions
+
+=over
+
 =item setVerbosity($level)
 
 Sets rpm verbosity level. $level is an integer between 2 (RPMMESS_CRIT) and 7
@@ -888,7 +894,7 @@ Copyright 2002, 2003, 2004, 2005 MandrakeSoft SA
 
 Copyright 2005, 2006, 2007, 2008 Mandriva SA
 
-Copyright 2011, 2012, Mangeia
+Copyright 2011, 2012, Mageia
 
 FranE<ccedil>ois Pons (original author), Rafael Garcia-Suarez, Pixel, Thierry Vignaud <tv@mageia.org> (current maintainer)
 

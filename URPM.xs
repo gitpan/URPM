@@ -1,5 +1,6 @@
 /* Copyright (c) 2002, 2003, 2004, 2005 MandrakeSoft SA
  * Copyright (c) 2005, 2006, 2007, 2008 Mandriva SA
+ * Copyright (c) 2011-2012 Mageia
  *
  * All rights reserved.
  * This program is free software; you can redistribute it and/or
@@ -811,11 +812,6 @@ update_hash_entry(HV *hash, const char *name, STRLEN len, int force, IV use_sens
 }
 
 static void
-update_provide_entry(const char *name, STRLEN len, int force, IV use_sense, const URPM__Package pkg, HV *provides) {
-  update_hash_entry(provides, name, len, force, use_sense, pkg);
-}
-
-static void
 update_provides(const URPM__Package pkg, HV *provides) {
   if (pkg->h) {
     int len;
@@ -840,8 +836,8 @@ update_provides(const URPM__Package pkg, HV *provides) {
       for (i = 0; i < rpmtdCount(&td); ++i) {
 	len = strlen(list[i]);
 	if (!strncmp(list[i], "rpmlib(", 7)) continue;
-	update_provide_entry(list[i], len, 1, flags && flags[i] & (RPMSENSE_PREREQ|RPMSENSE_SCRIPT_PREUN|RPMSENSE_SCRIPT_PRE|RPMSENSE_SCRIPT_POSTUN|RPMSENSE_SCRIPT_POST|RPMSENSE_LESS|RPMSENSE_EQUAL|RPMSENSE_GREATER),
-			     pkg, provides);
+	update_hash_entry(provides, list[i], len, 1, flags && flags[i] & (RPMSENSE_PREREQ|RPMSENSE_SCRIPT_PREUN|RPMSENSE_SCRIPT_PRE|RPMSENSE_SCRIPT_POSTUN|RPMSENSE_SCRIPT_POST|RPMSENSE_LESS|RPMSENSE_EQUAL|RPMSENSE_GREATER),
+			     pkg);
       }
     }
   } else {
@@ -868,11 +864,11 @@ update_provides(const URPM__Package pkg, HV *provides) {
       ps = strchr(s, '@');
       while(ps != NULL) {
 	*ps = 0; es = strchr(s, '['); if (!es) es = strchr(s, ' '); *ps = '@';
-	update_provide_entry(s, es != NULL ? es-s : ps-s, 1, es != NULL, pkg, provides);
+	update_hash_entry(provides, s, es != NULL ? es-s : ps-s, 1, es != NULL, pkg);
 	s = ps + 1; ps = strchr(s, '@');
       }
       es = strchr(s, '['); if (!es) es = strchr(s, ' ');
-      update_provide_entry(s, es != NULL ? es-s : 0, 1, es != NULL, pkg, provides);
+      update_hash_entry(provides, s, es != NULL ? es-s : 0, 1, es != NULL, pkg);
     }
   }
 }
@@ -932,7 +928,7 @@ update_provides_files(const URPM__Package pkg, HV *provides) {
 	if (p - buff + len >= sizeof(buff)) continue;
 	memcpy(p, baseNames[i], len + 1); p += len;
 
-	update_provide_entry(buff, p-buff, 0, 0, pkg, provides);
+	update_hash_entry(provides, buff, p-buff, 0, 0, pkg);
       }
 
       rpmtdFreeData(&td_baseNames);
@@ -945,7 +941,7 @@ update_provides_files(const URPM__Package pkg, HV *provides) {
 	  const char *s = rpmtdNextString(&td);
 	  len = strlen(s);
 
-	  update_provide_entry(s, len, 0, 0, pkg, provides);
+	  update_hash_entry(provides, s, len, 0, 0, pkg);
 	}
 
 	rpmtdFreeData(&td);
@@ -1511,42 +1507,47 @@ void
 Pkg_description(pkg)
   URPM::Package pkg
     ALIAS:
-     sourcerpm = 1
-     packager  = 2
-     buildhost = 3
-     url       = 4
-     license   = 5
-     distribution = 6
-     vendor    = 7
-     os        = 8
-     payload_format = 9
-     disttag = 10
+     packager  = 1
   PPCODE:
-  if (pkg->h)
+  if (pkg->h) {
+       rpmTag tag = ix == 0 ? RPMTAG_DESCRIPTION : RPMTAG_PACKAGER;
+       mXPUSHs(newSVpv_utf8(get_name(pkg->h, tag), 0));
+  }
+
+void
+Pkg_sourcerpm(pkg)
+  URPM::Package pkg
+    ALIAS:
+     buildhost = 1
+     url       = 2
+     license   = 3
+     distribution = 4
+     vendor    = 5
+     os        = 6
+     payload_format = 8
+  PPCODE:
+  if (pkg->h) {
+       rpmTag tag;
        switch (ix) {
-       case 0:
-       mXPUSHs(newSVpv_utf8(get_name(pkg->h, RPMTAG_DESCRIPTION), 0)); break;
        case 1:
-       mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_SOURCERPM), 0)); break;
+       tag = RPMTAG_BUILDHOST; break;
        case 2:
-       mXPUSHs(newSVpv_utf8(get_name(pkg->h, RPMTAG_PACKAGER), 0)); break;
+       tag = RPMTAG_URL; break;
        case 3:
-       mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_BUILDHOST), 0)); break;
+       tag = RPMTAG_LICENSE; break;
        case 4:
-       mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_URL), 0)); break;
+       tag = RPMTAG_DISTRIBUTION; break;
        case 5:
-       mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_LICENSE), 0)); break;
+       tag = RPMTAG_VENDOR; break;
        case 6:
-       mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_DISTRIBUTION), 0)); break;
+       tag = RPMTAG_OS; break;
        case 7:
-       mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_VENDOR), 0)); break;
-       case 8:
-       mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_OS), 0)); break;
-       case 9:
-       mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_PAYLOADFORMAT), 0)); break;
-       case 10:
-       mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_DISTTAG), 0)); break;
+       tag = RPMTAG_PAYLOADFORMAT; break;
+       default:
+       tag = RPMTAG_SOURCERPM; break;
        }
+       mXPUSHs(newSVpv(get_name(pkg->h, tag), 0));
+  }
 
 int
 Pkg_buildtime(pkg)
@@ -1819,38 +1820,23 @@ Pkg_set_id(pkg, id=-1)
   pkg->flag |= id >= 0 && id <= FLAG_ID_MAX ? id : FLAG_ID_INVALID;
 
 void
-Pkg_requires(pkg)
-  URPM::Package pkg
-  PPCODE:
-  PUTBACK;
-  return_list_str(pkg->requires, pkg->h, RPMTAG_REQUIRENAME, RPMTAG_REQUIREFLAGS, RPMTAG_REQUIREVERSION,
-		  callback_list_str_xpush, NULL);
-  SPAGAIN;
-
-void
-Pkg_requires_nosense(pkg)
-  URPM::Package pkg
-  PPCODE:
-  PUTBACK;
-  return_list_str(pkg->requires, pkg->h, RPMTAG_REQUIRENAME, RPMTAG_REQUIREFLAGS, 0, 
-		  callback_list_str_xpush, NULL);
-  SPAGAIN;
-
-void
-Pkg_suggests(pkg)
-  URPM::Package pkg
-  PPCODE:
-  PUTBACK;
-  return_list_str(pkg->suggests, pkg->h, RPMTAG_SUGGESTSNAME, 0, 0, callback_list_str_xpush, NULL);
-  SPAGAIN;
-
-void
 Pkg_obsoletes(pkg)
   URPM::Package pkg
+  ALIAS:
+      conflicts = 1
+      provides  = 2
+      requires  = 3
   PPCODE:
   PUTBACK;
-  return_list_str(pkg->obsoletes, pkg->h, RPMTAG_OBSOLETENAME, RPMTAG_OBSOLETEFLAGS, RPMTAG_OBSOLETEVERSION,
-		  callback_list_str_xpush, NULL);
+  rpmTag tag, flags, tag_version;
+  char *s;
+  switch (ix) {
+  case 1:  tag = RPMTAG_CONFLICTNAME; s = pkg->conflicts; flags = RPMTAG_CONFLICTFLAGS; tag_version = RPMTAG_CONFLICTVERSION; break;
+  case 2:  tag = RPMTAG_PROVIDENAME;  s = pkg->provides;  flags = RPMTAG_PROVIDEFLAGS;  tag_version = RPMTAG_PROVIDEVERSION;  break;
+  case 3:  tag = RPMTAG_REQUIRENAME;  s = pkg->requires;  flags = RPMTAG_REQUIREFLAGS;  tag_version = RPMTAG_REQUIREVERSION;  break;
+  default: tag = RPMTAG_OBSOLETENAME; s = pkg->obsoletes; flags = RPMTAG_OBSOLETEFLAGS; tag_version = RPMTAG_OBSOLETEVERSION; break;
+  }
+  return_list_str(s, pkg->h, tag, flags, tag_version, callback_list_str_xpush, NULL);
   SPAGAIN;
 
 void
@@ -1859,6 +1845,8 @@ Pkg_obsoletes_nosense(pkg)
   ALIAS:
       conflicts_nosense = 1
       provides_nosense  = 2
+      requires_nosense  = 3
+      suggests          = 4
   PPCODE:
   PUTBACK;
   rpmTag tag;
@@ -1866,6 +1854,8 @@ Pkg_obsoletes_nosense(pkg)
   switch (ix) {
   case 1:  tag = RPMTAG_CONFLICTNAME; s = pkg->conflicts; break;
   case 2:  tag = RPMTAG_PROVIDENAME;  s = pkg->provides;  break;
+  case 3:  tag = RPMTAG_REQUIRENAME;  s = pkg->requires;  break;
+  case 4:  tag = RPMTAG_SUGGESTSNAME; s = pkg->suggests;  break;
   default: tag = RPMTAG_OBSOLETENAME; s = pkg->obsoletes; break;
   }
   return_list_str(s, pkg->h, tag, 0, 0, callback_list_str_xpush, NULL);
@@ -1925,24 +1915,6 @@ Pkg_obsoletes_overlap(pkg, s)
   if (eon) *eon = eonc;
   OUTPUT:
   RETVAL
-
-void
-Pkg_conflicts(pkg)
-  URPM::Package pkg
-  PPCODE:
-  PUTBACK;
-  return_list_str(pkg->conflicts, pkg->h, RPMTAG_CONFLICTNAME, RPMTAG_CONFLICTFLAGS, RPMTAG_CONFLICTVERSION,
-		  callback_list_str_xpush, NULL);
-  SPAGAIN;
-
-void
-Pkg_provides(pkg)
-  URPM::Package pkg
-  PPCODE:
-  PUTBACK;
-  return_list_str(pkg->provides, pkg->h, RPMTAG_PROVIDENAME, RPMTAG_PROVIDEFLAGS, RPMTAG_PROVIDEVERSION,
-		  callback_list_str_xpush, NULL);
-  SPAGAIN;
 
 void
 Pkg_buildarchs(pkg)
