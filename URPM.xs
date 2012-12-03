@@ -2435,8 +2435,10 @@ Db_traverse_tag_find(db,tag,name,callback)
   ovsflags = ts_nosignature(db->ts);
   mi = rpmtsInitIterator(db->ts, rpmtag, name, 0);
   while ((header = rpmdbNextIterator(mi))) {
+      dSP;
       int count = _run_cb_while_traversing(callback, header, 0);
 
+      SPAGAIN;
       if (count == 1 && POPi) {
 	found = 1;
 	break;
