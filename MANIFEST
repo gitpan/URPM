@@ -21,3 +21,4 @@ t/test-rpm.spec
 ChangeLog
 META.yml                                 Module meta-data (added by MakeMaker)
 NEWS
+META.json                                Module JSON meta-data (added by MakeMaker)

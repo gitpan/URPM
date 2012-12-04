@@ -11,7 +11,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '4.20';
+our $VERSION = '4.21';
 
 URPM->bootstrap($VERSION);
 
@@ -32,7 +32,7 @@ sub set_nofatal {
 
 sub packages_providing {
     my ($urpm, $name) = @_;
-    grep { $_ } map { $urpm->{depslist}[$_] } keys %{$urpm->{provides}{$name} || {}};
+    grep { $_ } map { $urpm->{depslist}[$_] } sort { $a <=> $b } keys %{$urpm->{provides}{$name} || {}};
 }
 
 sub packages_obsoleting {

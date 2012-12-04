@@ -99,7 +99,7 @@ sub find_candidate_packages {
 sub get_installed_arch {
     my ($db, $n) = @_;
     my $arch;
-    $db->traverse_tag_find('name', $n, sub { $arch = $_[0]->arch });
+    $db->traverse_tag_find('name', $n, sub { $arch = $_[0]->arch; 1 });
     $arch;
 }
 
@@ -217,12 +217,11 @@ sub find_required_package {
 	    $may_add_to_packages->($pkg);
 	} elsif (my $name = property2name($_)) {
 	    my $property = $_;
-	    foreach (sort { $a <=> $b } keys %{$urpm->{provides}{$name} || {}}) {
-		my $pkg = $urpm->{depslist}[$_];
+	    foreach my $pkg (packages_providing($urpm, $name)) {
 		$pkg->is_arch_compat or next;
 		$pkg->flag_skip || $state->{rejected}{$pkg->fullname} and next;
 		#- check if at least one provide of the package overlaps the property
-		if (!$urpm->{provides}{$name}{$_} || $pkg->provides_overlap($property)) {
+		if (!$urpm->{provides}{$name}{$pkg->id} || $pkg->provides_overlap($property)) {
 		    #- determine if this package is better than a possibly previously chosen package.
 		    $pkg->flag_selected || exists $state->{selected}{$pkg->id} and return [$pkg];
 		    !$strict_arch || strict_arch_check_installed($db, $pkg) or next;

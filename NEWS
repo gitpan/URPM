@@ -1,3 +1,8 @@
+Version 4.21 - 4 December 2012
+
+- prefer package from first medium when same NEVR exists in several media
+  (thus prefering 64bit media over 32 bit ones) (mga#7524)
+
 Version 4.20 - 3 December 2012
 
 - fix a rare segfault
