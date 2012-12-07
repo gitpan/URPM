@@ -1,3 +1,7 @@
+Version 4.21.1 - 7 December 2012
+
+- fix EVR() on packages from rpmdb (was ok on synthesis ones) (mga#7739)
+
 Version 4.21 - 4 December 2012
 
 - prefer package from first medium when same NEVR exists in several media

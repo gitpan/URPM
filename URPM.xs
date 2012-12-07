@@ -1453,8 +1453,11 @@ Pkg_EVR(pkg)
          mXPUSHs(newSVpv(res, 0));
          *arch = '.'; /* restore info string modified */
       }
-    } else if (pkg->h)
-         mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_EVR), 0));
+    } else if (pkg->h) {
+         char *s = headerGetAsString(pkg->h, RPMTAG_EVR);
+         mXPUSHs(newSVpv(s, 0));
+         free(s);
+    }
 
 void
 Pkg_arch(pkg)
