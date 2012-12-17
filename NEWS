@@ -1,3 +1,10 @@
+Version 4.22 - 17 December 2012
+
+- rpm-4.11 fixes:
+  o fix compiling with it
+  o prevent creating empty transactions in rare cases
+    (that cause rpm to abort on assert while creating a new pool)
+
 Version 4.21.1 - 7 December 2012
 
 - fix EVR() on packages from rpmdb (was ok on synthesis ones) (mga#7739)

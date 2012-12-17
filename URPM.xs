@@ -483,9 +483,7 @@ return_list_tag_modifier(const Header header, rpmTag tag_name) {
       if (tag & RPMFILE_NOREPLACE) *s++ = 'n';
       if (tag & RPMFILE_SPECFILE)  *s++ = 'S';
       if (tag & RPMFILE_README)    *s++ = 'R';
-      if (tag & RPMFILE_EXCLUDE)   *s++ = 'e';
       if (tag & RPMFILE_ICON)      *s++ = 'i';
-      if (tag & RPMFILE_UNPATCHED) *s++ = 'u';
       if (tag & RPMFILE_PUBKEY)    *s++ = 'p';
     } else {
       rpmtdFreeData(&td);
@@ -1103,7 +1101,6 @@ static void drop_tags(Header *h) {
 
   headerDel(*h, RPMTAG_ICON);
   headerDel(*h, RPMTAG_GIF);
-  headerDel(*h, RPMTAG_EXCLUDE);
   headerDel(*h, RPMTAG_EXCLUSIVE);
   headerDel(*h, RPMTAG_COOKIE);
   headerDel(*h, RPMTAG_VERIFYSCRIPT);
