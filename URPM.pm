@@ -11,7 +11,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '4.23';
+our $VERSION = '4.24';
 
 URPM->bootstrap($VERSION);
 
@@ -303,14 +303,27 @@ and C<URPM::Transaction>.
 =item URPM->new()
 
 The constructor creates a new, empty URPM object. It's a blessed hash that
-contains two fields:
+contains three fields:
+
+=over
+
+=item *
 
 B<depslist> is an arrayref containing the list of depending packages (which are
 C<URPM::Package> objects).
 
+=item *
+
+B<obsoletes> is an hashref containing as keys the list of property names
+obsoleted by the URPM object.
+
+=item *
+
 B<provides> is an hashref containing as keys the list of property names
 provided by the URPM object. The associated value is true if the property is
 versioned.
+
+=back
 
 If the constructor is called with the arguments C<< nofatal => 1 >>, various
 fatal error messages are suppressed (file not found in parse_hdlist() and
@@ -334,6 +347,11 @@ where epoch, version and release are RPM-style version numbers.
 This method gets the B<depslist> and the B<provides> from a synthesis file
 and adds them to the URPM object.
 
+Callback signature is callback(C<URPM>, C<URPM::Package>).
+
+The return value is a two-element array containing the first and the last id
+parsed.
+
 =item $urpm->parse_hdlist($file, %options)
 
 This method loads rpm informations from rpm headers contained in an hdlist
@@ -342,6 +360,8 @@ file and adds them to the URPM object. Allowed options are
     packing => 0 / 1
     callback => sub { ... }
     keep_all_tags => 0 / 1
+
+Callback signature is callback(C<URPM>, C<URPM::Package>).
 
 The return value is a two-element array containing the first and the last id
 parsed.
@@ -357,6 +377,8 @@ and adds them to the URPM object. Allowed options are
 
 If C<keep_all_tags> isn't specified, URPM will drop all memory-consuming tags
 (notably changelogs, filelists, scriptlets).
+
+Callback signature is callback(URPM::Package).
 
 =item $urpm->packages_providing($name)
 
@@ -390,6 +412,8 @@ $names is a reference to an array, holding the acceptable values of the said
 tag for the searched variables.
 Then, $callback is called for each matching package in the depslist.
 
+Callback signature is callback(URPM::Package).
+
 This is used when faking a URPM::DB: $urpm can be used as-a $db
 
 =item $urpm->traverse_tag_find($tag,$name,$callback)
@@ -397,6 +421,8 @@ This is used when faking a URPM::DB: $urpm can be used as-a $db
 Quite similar to C<traverse_tag>, but stops when $callback returns true.
 
 (also note that only one $name is handled)
+
+Callback signature is callback(URPM::Package).
 
 This is used when faking a URPM::DB: $urpm can be used as-a $db
 
@@ -467,6 +493,8 @@ $names is a reference to an array, holding the acceptable values of the said
 tag for the searched variables.
 Then, $callback is called for each matching package in the DB.
 
+Callback signature is callback(URPM::Package).
+
 Returns the number of packages seen (all those that matched provided names).
 
 =item $db->traverse_tag_find($tag,$name,$callback)
@@ -474,6 +502,8 @@ Returns the number of packages seen (all those that matched provided names).
 Quite similar to C<traverse_tag>, but stops when $callback returns true.
 
 (also note that only one $name is handled)
+
+Callback signature is callback(URPM::Package).
 
 Returns whether callback returned true once.
 
@@ -757,10 +787,12 @@ list context, returns an array of problems (an empty array indicates success).
 Runs the transaction.
 
 $data is an arbitrary user-provided piece of data to be passed to callbacks.
+It's usually the $urpm object.
 
 Recognized options are:
 
     callback_close  => sub { ... }
+    callback_error  => sub { ... }
     callback_inst   => sub { ... }
     callback_open   => sub { ... }
     callback_trans  => sub { ... }
@@ -776,6 +808,19 @@ Recognized options are:
     translate_message => 1
 
 They roughly correspond to command-line options to rpm(1).
+
+'callback_open' signature is (C<$data>, C<$cb_type>, C<$pkg_id>). It _must_ return a file handler for the asked package.
+
+'callback_close' signature is (C<$data>, C<$cb_type>, C<$pkg_id>). It is called just before URPM close the fd for the installed package.
+
+C<$cb_type> is one of 'open' or 'close'.
+
+Other Callbacks signature is callback(C<$data>, C<$cb_type>, C<$pkg_id>, C<$subtype>, C<$amout>, C<$total>)
+
+C<$cb_type> is one of 'error', 'inst', 'trans' or 'uninst'. C<$subtype> can be 'start', 'progress' or 'stop'.
+For 'error', it can be 'cpio', 'script' or 'unpack'.
+
+The purpose of those callbacks is to report progress (the two last parameters (C<$amount> & C<$total>) enable to compute progress percentage).
 
 =item $trans->traverse($callback)
 
@@ -900,7 +945,7 @@ Copyright 2002, 2003, 2004, 2005 MandrakeSoft SA
 
 Copyright 2005, 2006, 2007, 2008 Mandriva SA
 
-Copyright 2011, 2012, Mageia
+Copyright 2011, 2012, 2013 Mageia
 
 FranE<ccedil>ois Pons (original author), Rafael Garcia-Suarez, Pixel, Thierry Vignaud <tv@mageia.org> (current maintainer)
 

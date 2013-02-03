@@ -1,6 +1,6 @@
 /* Copyright (c) 2002, 2003, 2004, 2005 MandrakeSoft SA
  * Copyright (c) 2005, 2006, 2007, 2008 Mandriva SA
- * Copyright (c) 2011-2012 Mageia
+ * Copyright (c) 2011-2013 Mageia
  *
  * All rights reserved.
  * This program is free software; you can redistribute it and/or
@@ -70,6 +70,7 @@ struct s_TransactionData {
   SV* callback_trans;
   SV* callback_uninst;
   SV* callback_inst;
+  SV* callback_error;
   long min_delta;
   SV *data; /* chain with another data user provided */
 };
@@ -429,9 +430,8 @@ xpush_simple_list_str(const Header header, rpmTag tag_name) {
     size = rpmtdCount(&list);
 
     EXTEND(SP, size);
-    while ((val = rpmtdNextString(&list))) {
+    while ((val = rpmtdNextString(&list)))
         mPUSHs(newSVpv(val, 0));
-    }
     rpmtdFreeData(&list);
     PUTBACK;
     return size;
@@ -543,31 +543,28 @@ return_list_tag(const URPM__Package pkg, rpmTag tag_name) {
 	}
     }
   } else {
-    char *name;
-    char *version;
-    char *release;
-    char *arch;
-    char *eos;
+    char *name, *version, *release, *arch, *eos, *data = NULL;
+    int len;
     switch (tag_name) {
       case RPMTAG_NAME:
 	{
 	  get_fullname_parts(pkg, &name, &version, &release, &arch, &eos);
-	  if (version - name < 1) croak("invalid fullname");
-	  mXPUSHs(newSVpv(name, version-name - 1));
+	  data = name;
+	  len = version-name;
 	}
 	break;
       case RPMTAG_VERSION:
 	{
 	  get_fullname_parts(pkg, &name, &version, &release, &arch, &eos);
-	  if (release - version < 1) croak("invalid fullname");
-	  mXPUSHs(newSVpv(version, release-version - 1));
+	  data = version;
+	  len = release-version;
 	}
 	break;
       case RPMTAG_RELEASE:
 	{
 	  get_fullname_parts(pkg, &name, &version, &release, &arch, &eos);
-	  if (arch - release < 1) croak("invalid fullname");
-	  mXPUSHs(newSVpv(release, arch-release - 1));
+	  data = release;
+	  len = arch-release;
 	}
 	break;
       case RPMTAG_ARCH:
@@ -582,6 +579,10 @@ return_list_tag(const URPM__Package pkg, rpmTag tag_name) {
       default:
 	croak("unexpected tag %s", tag_name);
 	break;
+    }
+    if (data) {
+      if (len < 1) croak("invalid fullname");
+      mXPUSHs(newSVpv(data, len - 1));
     }
   }
   PUTBACK;
@@ -843,6 +844,7 @@ update_provides(const URPM__Package pkg, HV *provides) {
 
     if ((s = pkg->requires) != NULL && *s != 0) {
       ps = strchr(s, '@');
+      /* examine requires for files which need to be marked in provides */
       while(ps != NULL) {
 	if (s[0] == '/') {
 	  *ps = 0; es = strchr(s, '['); if (!es) es = strchr(s, ' '); *ps = '@';
@@ -856,9 +858,8 @@ update_provides(const URPM__Package pkg, HV *provides) {
       }
     }
 
+    /* update all provides */
     if ((s = pkg->provides) != NULL && *s != 0) {
-      char *es;
-
       ps = strchr(s, '@');
       while(ps != NULL) {
 	*ps = 0; es = strchr(s, '['); if (!es) es = strchr(s, ' '); *ps = '@';
@@ -994,8 +995,9 @@ call_package_callback(SV *urpm, SV *sv_pkg, SV *callback) {
     /* now, a callback will be called for sure */
     dSP;
     PUSHMARK(SP);
-    XPUSHs(urpm);
-    XPUSHs(sv_pkg);
+    EXTEND(SP, 2);
+    PUSHs(urpm);
+    PUSHs(sv_pkg);
     PUTBACK;
     count = call_sv(callback, G_SCALAR);
     SPAGAIN;
@@ -1012,7 +1014,6 @@ call_package_callback(SV *urpm, SV *sv_pkg, SV *callback) {
 
 static void
 push_in_depslist(struct s_Package *_pkg, SV *urpm, AV *depslist, SV *callback, HV *provides, HV *obsoletes, int packing) {
-    // leak if callback ever returns 1 ! (never happen)
     SV *sv_pkg = sv_setref_pv(newSVpvs(""), "URPM::Package", _pkg);
     if (call_package_callback(urpm, sv_pkg, callback)) {
       if (provides) {
@@ -1239,8 +1240,20 @@ static void *rpmRunTransactions_callback(__attribute__((unused)) const void *h,
       break;
     case RPMCALLBACK_INST_START:
     case RPMCALLBACK_INST_PROGRESS:
+    case RPMCALLBACK_INST_STOP:
       callback = td->callback_inst;
       callback_type = "inst";
+      break;
+    case RPMCALLBACK_SCRIPT_START:
+    case RPMCALLBACK_SCRIPT_STOP:
+      callback = td->callback_inst;
+      callback_type = "script";
+      break;
+    case RPMCALLBACK_CPIO_ERROR:
+    case RPMCALLBACK_SCRIPT_ERROR:
+    case RPMCALLBACK_UNPACK_ERROR:
+      callback = td->callback_error;
+      callback_type = "error";
       break;
     default:
       break;
@@ -1265,9 +1278,19 @@ static void *rpmRunTransactions_callback(__attribute__((unused)) const void *h,
 	else
 	  tprev = tcurr;
 	break;
+      case RPMCALLBACK_INST_STOP:
       case RPMCALLBACK_TRANS_STOP:
       case RPMCALLBACK_UNINST_STOP:
 	callback_subtype = "stop";
+	break;
+      case RPMCALLBACK_CPIO_ERROR:
+	callback_subtype = "cpio";
+	break;
+      case RPMCALLBACK_SCRIPT_ERROR:
+	callback_subtype = "script";
+	break;
+      case RPMCALLBACK_UNPACK_ERROR:
+	callback_subtype = "unpack";
 	break;
       default:
 	break;
@@ -1279,13 +1302,14 @@ static void *rpmRunTransactions_callback(__attribute__((unused)) const void *h,
       ENTER;
       SAVETMPS;
       PUSHMARK(SP);
-      XPUSHs(td->data);
-      mXPUSHs(newSVpv(callback_type, 0));
-      XPUSHs(pkgKey != NULL ? sv_2mortal(newSViv((long)pkgKey - 1)) : &PL_sv_undef);
+      EXTEND(SP, callback_subtype == NULL ? 2 : 5);
+      PUSHs(td->data);
+      mPUSHs(newSVpv(callback_type, 0));
+      PUSHs(pkgKey != NULL ? sv_2mortal(newSViv((long)pkgKey - 1)) : &PL_sv_undef);
       if (callback_subtype != NULL) {
-	mXPUSHs(newSVpv(callback_subtype, 0));
-	mXPUSHs(newSViv(amount));
-	mXPUSHs(newSViv(total));
+	mPUSHs(newSVpv(callback_subtype, 0));
+	mPUSHs(newSViv(amount));
+	mPUSHs(newSViv(total));
       }
       PUTBACK;
       i = call_sv(callback, callback == td->callback_open ? G_SCALAR : G_DISCARD);
@@ -1332,6 +1356,18 @@ rpmtag_from_string(char *tag)
     else if (!strcmp(tag, "nvra"))
       return RPMDBI_LABEL;
     else croak("unknown tag [%s]", tag);
+}
+
+static unsigned mask_from_string(char *name) {
+  unsigned mask;
+  if (!strcmp(name, "skip")) mask = FLAG_SKIP;
+  else if (!strcmp(name, "disable_obsolete")) mask = FLAG_DISABLE_OBSOLETE;
+  else if (!strcmp(name, "installed")) mask = FLAG_INSTALLED;
+  else if (!strcmp(name, "requested")) mask = FLAG_REQUESTED;
+  else if (!strcmp(name, "required")) mask = FLAG_REQUIRED;
+  else if (!strcmp(name, "upgrade")) mask = FLAG_UPGRADE;
+  else croak("unknown flag: %s", name);
+  return mask;
 }
 
 static int compare_evrs(int lepoch, char*lversion, char*lrelease, int repoch, char*rversion, char*rrelease) {
@@ -2131,13 +2167,7 @@ Pkg_flag(pkg, name)
   PREINIT:
   unsigned mask;
   CODE:
-  if (!strcmp(name, "skip")) mask = FLAG_SKIP;
-  else if (!strcmp(name, "disable_obsolete")) mask = FLAG_DISABLE_OBSOLETE;
-  else if (!strcmp(name, "installed")) mask = FLAG_INSTALLED;
-  else if (!strcmp(name, "requested")) mask = FLAG_REQUESTED;
-  else if (!strcmp(name, "required")) mask = FLAG_REQUIRED;
-  else if (!strcmp(name, "upgrade")) mask = FLAG_UPGRADE;
-  else croak("unknown flag: %s", name);
+  mask = mask_from_string(name);
   RETVAL = pkg->flag & mask;
   OUTPUT:
   RETVAL
@@ -2150,13 +2180,7 @@ Pkg_set_flag(pkg, name, value=1)
   PREINIT:
   unsigned mask;
   CODE:
-  if (!strcmp(name, "skip")) mask = FLAG_SKIP;
-  else if (!strcmp(name, "disable_obsolete")) mask = FLAG_DISABLE_OBSOLETE;
-  else if (!strcmp(name, "installed")) mask = FLAG_INSTALLED;
-  else if (!strcmp(name, "requested")) mask = FLAG_REQUESTED;
-  else if (!strcmp(name, "required")) mask = FLAG_REQUIRED;
-  else if (!strcmp(name, "upgrade")) mask = FLAG_UPGRADE;
-  else croak("unknown flag: %s", name);
+  mask = mask_from_string(name);
   RETVAL = pkg->flag & mask;
   if (value) pkg->flag |= mask;
   else       pkg->flag &= ~mask;
@@ -2659,7 +2683,7 @@ Trans_run(trans, data, ...)
   URPM::Transaction trans
   SV *data
   PREINIT:
-  struct s_TransactionData td = { NULL, NULL, NULL, NULL, NULL, 100000, data };
+  struct s_TransactionData td = { NULL, NULL, NULL, NULL, NULL, NULL, 100000, data };
   rpmtransFlags transFlags = RPMTRANS_FLAG_NONE;
   int probFilter = 0;
   int translate_message = 0, raw_message = 0;
@@ -2714,6 +2738,8 @@ Trans_run(trans, data, ...)
 	if (SvROK(ST(i+1))) td.callback_uninst = ST(i+1);
       } else if (len == 9+4 && !memcmp(s+9, "inst", 4)) {
 	if (SvROK(ST(i+1))) td.callback_inst = ST(i+1);
+      } else if (len == 9+5 && !memcmp(s+9, "error", 5)) {
+	if (SvROK(ST(i+1))) td.callback_error = ST(i+1);
       }
     }
   }

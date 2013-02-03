@@ -1,4 +1,9 @@
-Version 4.23 - 20 January 2012
+Version 4.24 - 3 February 2013
+
+- enhanced doc
+- enable to report script & I/O errors
+
+Version 4.23 - 20 January 2013
 
 - fix scoring locale packages
 
