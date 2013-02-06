@@ -1571,7 +1571,7 @@ Pkg_sourcerpm(pkg)
      distribution = 4
      vendor    = 5
      os        = 6
-     payload_format = 8
+     payload_format = 7
   PPCODE:
   if (pkg->h) {
        rpmTag tag;
