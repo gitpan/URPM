@@ -1,3 +1,7 @@
+Version 4.26 - 9 February 2013
+
+- add basic support for --downgrade (mga#6655)
+
 Version 4.25 - 5 February 2013
 
 - fix retrieving payload format
