@@ -1,3 +1,7 @@
+Version 4.27 - 22 March 2013
+
+- fix selecting right DKMS flavor (mga#9172)
+
 Version 4.26 - 9 February 2013
 
 - add basic support for --downgrade (mga#6655)
