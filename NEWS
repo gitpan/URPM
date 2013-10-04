@@ -1,3 +1,10 @@
+Version 4.28 - 3 October 2013
+
+- adapt to perl-5.18 random hash keys ordering
+  now find_required_package() always sort matching packages  by their names
+  before sorting them by arch and score
+- coverity fixes
+
 Version 4.27 - 22 March 2013
 
 - fix selecting right DKMS flavor (mga#9172)

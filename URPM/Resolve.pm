@@ -81,7 +81,7 @@ sub find_candidate_packages {
 	    push @packages, $pkg;
 	} elsif (my $name = property2name($_)) {
 	    my $property = $_;
-	    foreach (keys %{$urpm->{provides}{$name} || {}}) {
+	    foreach (sort keys %{$urpm->{provides}{$name} || {}}) {
 		my $pkg = $urpm->{depslist}[$_];
 		$pkg->flag_skip and next;
 		$pkg->is_arch_compat or next;
@@ -231,7 +231,7 @@ sub find_required_package {
 	    }
 	}
     }
-    my @packages = values %packages;
+    my @packages = sort { $a->fullname cmp $b->fullname } values %packages;
 
     if (@packages > 1) {
 	#- packages should be preferred if one of their provides is referenced
@@ -266,7 +266,8 @@ sub _find_required_package__sort {
 
 	my ($best, @other) = sort {
 	      $a->[1] <=> $b->[1] #- we want the lowest (ie preferred arch)
-	      || $b->[2] <=> $a->[2]; #- and the higher score
+	      || $b->[2] <=> $a->[2] #- and the higher score
+	      || $a->[0]->fullname cmp $b->[0]->fullname; #- then by name
 	} map {
 	    my $score = 0;
 	    $score += 2 if $_->flag_requested;
@@ -1296,7 +1297,7 @@ sub _handle_diff_provides {
 	    }
 
 	    if (@best == @unsatisfied) {
-		$urpm->{debug_URPM}("promoting " . join(' ', _ids_to_fullnames($urpm, @best)) . " because of conflict above") if $urpm->{debug_URPM};
+		$urpm->{debug_URPM}("promoting " . join(' ', _ids_to_fullnames($urpm, map { split('\|', $_) } @best)) . " because of conflict above") if $urpm->{debug_URPM};
 		push @$properties, map { +{ required => $_, promote => $n, psel => $pkg } } @best;
 	    } else {
 		if ($from_state) {

@@ -965,7 +965,9 @@ open_archive(char *filename, int *empty_archive) {
     if (read(fd, &buf, sizeof(buf)) != sizeof(buf) || strncmp(buf.header, "cz[0", 4) || strncmp(buf.trailer, "0]cz", 4)) {
       /* this is not an archive, open it without magic, but first rewind at begin of file */
       lseek(fd, 0, SEEK_SET);
-      return fdDup(fd);
+      rfd = fdDup(fd);
+      close(fd);
+      return rfd;
     } else if (pos == 0) {
       *empty_archive = 1;
     } else {
@@ -983,7 +985,7 @@ open_archive(char *filename, int *empty_archive) {
       }
     }
   }
-  close(fd);
+  close(fd); // we rely on EBADF in testsuite
   return rfd;
 }
 
@@ -1175,8 +1177,8 @@ update_header(char *filename, URPM__Package pkg, __attribute__((unused)) int kee
 	  Fclose(fd);
 	  return 1;
 	}
-      }
-    }
+      } else close(d);
+    } else close(d);
   }
   return 0;
 }
@@ -1428,46 +1430,34 @@ Pkg_DESTROY(pkg)
 void
 Pkg_name(pkg)
   URPM::Package pkg
+    ALIAS:
+     version  = 1
+     release  = 2
+     arch     = 3
   PPCODE:
   if (pkg->info) {
-    char *name;
-    char *version;
+    char *name, *version, *release, *arch, *eos;
+    char *res;
+    STRLEN end;
 
-    get_fullname_parts(pkg, &name, &version, NULL, NULL, NULL);
-    if (version - name < 1) croak("invalid fullname");
-    mXPUSHs(newSVpv(name, version-name-1));
+    get_fullname_parts(pkg, &name, &version, &release, &arch, &eos);
+    switch (ix) {
+    case 1:  res = version; end = release - version; break;
+    case 2:  res = release; end = arch-release;      break;
+    case 3:  res = arch;    end = eos-arch+1;        break;
+    default: res = name;    end = version - name;
+    }
+    if (end < 1) croak("invalid fullname");
+    mXPUSHs(newSVpv(res, end-1));
   } else if (pkg->h) {
-    mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_NAME), 0));
-  }
-
-void
-Pkg_version(pkg)
-  URPM::Package pkg
-  PPCODE:
-  if (pkg->info) {
-    char *version;
-    char *release;
-
-    get_fullname_parts(pkg, NULL, &version, &release, NULL, NULL);
-    if (release - version < 1) croak("invalid fullname");
-    mXPUSHs(newSVpv(version, release-version-1));
-  } else if (pkg->h) {
-    mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_VERSION), 0));
-  }
-
-void
-Pkg_release(pkg)
-  URPM::Package pkg
-  PPCODE:
-  if (pkg->info) {
-    char *release;
-    char *arch;
-
-    get_fullname_parts(pkg, NULL, NULL, &release, &arch, NULL);
-    if (arch - release < 1) croak("invalid fullname");
-    mXPUSHs(newSVpv(release, arch-release-1));
-  } else if (pkg->h) {
-    mXPUSHs(newSVpv(get_name(pkg->h, RPMTAG_RELEASE), 0));
+    char *str;
+    switch (ix) {
+    case 1:  str = get_name(pkg->h, RPMTAG_VERSION); break;
+    case 2:  str = get_name(pkg->h, RPMTAG_RELEASE); break;
+    case 3:  str = get_arch(pkg->h); break;
+    default: str = get_name(pkg->h, RPMTAG_NAME);
+    }
+    mXPUSHs(newSVpv(str, 0));
   }
 
 void
@@ -1502,20 +1492,6 @@ Pkg_EVR(pkg)
          mXPUSHs(newSVpv(s, 0));
          free(s);
     }
-
-void
-Pkg_arch(pkg)
-  URPM::Package pkg
-  PPCODE:
-  if (pkg->info) {
-    char *arch;
-    char *eos;
-
-    get_fullname_parts(pkg, NULL, NULL, NULL, &arch, &eos);
-    mXPUSHs(newSVpv(arch, eos-arch));
-  } else if (pkg->h) {
-    mXPUSHs(newSVpv(get_arch(pkg->h), 0));
-  }
 
 int
 Pkg_is_arch_compat__XS(pkg)
@@ -1576,22 +1552,14 @@ Pkg_sourcerpm(pkg)
   if (pkg->h) {
        rpmTag tag;
        switch (ix) {
-       case 1:
-       tag = RPMTAG_BUILDHOST; break;
-       case 2:
-       tag = RPMTAG_URL; break;
-       case 3:
-       tag = RPMTAG_LICENSE; break;
-       case 4:
-       tag = RPMTAG_DISTRIBUTION; break;
-       case 5:
-       tag = RPMTAG_VENDOR; break;
-       case 6:
-       tag = RPMTAG_OS; break;
-       case 7:
-       tag = RPMTAG_PAYLOADFORMAT; break;
-       default:
-       tag = RPMTAG_SOURCERPM; break;
+       case 1:  tag = RPMTAG_BUILDHOST;     break;
+       case 2:  tag = RPMTAG_URL;           break;
+       case 3:  tag = RPMTAG_LICENSE;       break;
+       case 4:  tag = RPMTAG_DISTRIBUTION;  break;
+       case 5:  tag = RPMTAG_VENDOR;        break;
+       case 6:  tag = RPMTAG_OS;            break;
+       case 7:  tag = RPMTAG_PAYLOADFORMAT; break;
+       default: tag = RPMTAG_SOURCERPM;     break;
        }
        mXPUSHs(newSVpv(get_name(pkg->h, tag), 0));
   }
@@ -2378,7 +2346,7 @@ Db_verify(prefix=NULL)
   ts = rpmtsCreate();
   rpmtsSetRootDir(ts, prefix);
   RETVAL = rpmtsVerifyDB(ts) == 0;
-  ts = rpmtsFree(ts);
+  rpmtsFree(ts);
   OUTPUT:
   RETVAL
 
@@ -2535,6 +2503,7 @@ Trans_add(trans, pkg, ...)
 	  if (SvROK(ST(i+1)) && SvTYPE(SvRV(ST(i+1))) == SVt_PVAV) {
 	    AV *excludepath = (AV*)SvRV(ST(i+1));
 	    I32 j = 1 + av_len(excludepath);
+	    if (relocations) free(relocations);
 	    relocations = calloc(j + 1, sizeof(rpmRelocation));
 	    while (--j >= 0) {
 	      SV **e = av_fetch(excludepath, j, 0);
@@ -2628,7 +2597,7 @@ Trans_check(trans, ...)
     } else if (gimme == G_SCALAR)
       mXPUSHs(newSViv(1));
     
-    ps = rpmpsFree(ps);
+    rpmpsFree(ps);
   }
 
 void
@@ -2751,7 +2720,7 @@ Trans_run(trans, data, ...)
     PUTBACK;
     return_problems(ps, translate_message, raw_message || !translate_message);
     SPAGAIN;
-    ps = rpmpsFree(ps);
+    rpmpsFree(ps);
   }
   rpmtsEmpty(trans->ts);
   (void)rpmtsFree(trans->ts);
@@ -3172,7 +3141,7 @@ Urpm_verify_signature(filename, prefix=NULL)
 	break;
     }
     RETVAL = result;
-    if (h) h = headerFree(h);
+    if (h) headerFree(h);
     (void)rpmtsFree(ts);
   }
 
@@ -3200,7 +3169,7 @@ Urpm_import_pubkey_file(db, filename)
         RETVAL = 0;
     else
         RETVAL = 1;
-    pkt = _free(pkt);
+    _free(pkt);
     (void)rpmtsFree(ts);
     OUTPUT:
     RETVAL
@@ -3230,6 +3199,7 @@ Urpm_stream2header(fp)
         pkg->h = headerRead(fd, HEADER_MAGIC_YES);
         if (pkg->h)
             XPUSHs(sv_setref_pv(sv_newmortal(), "URPM::Package", (void*)pkg));
+        else free(pkg);
         Fclose(fd);
     }
 
@@ -3251,7 +3221,7 @@ Urpm_spec2srcheader(specfile)
     pkg = (URPM__Package)calloc(1, sizeof(struct s_Package));
     pkg->h = headerLink(header);
     XPUSHs(sv_setref_pv(sv_newmortal(), "URPM::Package", (void*)pkg));
-    spec = rpmSpecFree(spec);
+    rpmSpecFree(spec);
   } else {
     XPUSHs(&PL_sv_undef);
     /* apparently rpmlib sets errno to this when given a bad spec. */
