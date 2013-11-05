@@ -11,7 +11,7 @@ use URPM::Resolve;
 use URPM::Signature;
 
 our @ISA = qw(DynaLoader);
-our $VERSION = '4.28';
+our $VERSION = '4.29';
 
 URPM->bootstrap($VERSION);
 
@@ -184,6 +184,14 @@ sub traverse_tag_find {
     $urpm->traverse_tag($tag, [ $name ], $callback);
 }
 
+
+#- this is used when faking a URPM::DB: $urpm can be used as-a $db
+#- (used for urpmi --env)
+sub create_transaction {
+    my ($urpm) = @_;
+    die "Installing is not supported with a fake environment!";
+}
+
 # wrapper around XS functions
 # it handles error cases
 sub _parse_hdlist_or_synthesis {
@@ -298,6 +306,8 @@ and C<URPM::Transaction>.
 
 =head2 The URPM class
 
+=head3 Initialization
+
 =over 4
 
 =item URPM->new()
@@ -333,14 +343,14 @@ parse_synthesis()).
 
 Force the re-reading of the RPM configuration files.
 
-=item URPM::ranges_overlap($range1, $range2)
+=back
 
-This utility function compares two version ranges, in order to calculate
-dependencies properly. The ranges have roughly the form
+=head3 Loading packages data
 
-    [<|<=|==|=>|>] [epoch:]version[-release]
+$urpm->{depslist} is loaded when parsing sources (synthesis, hdlists or a plain
+rpm file).
 
-where epoch, version and release are RPM-style version numbers.
+=over
 
 =item $urpm->parse_synthesis($file [, callback => sub {...} ])
 
@@ -380,6 +390,21 @@ If C<keep_all_tags> isn't specified, URPM will drop all memory-consuming tags
 
 Callback signature is callback(URPM::Package).
 
+=back
+
+=head3 Searching packages
+
+=over
+
+=item URPM::ranges_overlap($range1, $range2)
+
+This utility function compares two version ranges, in order to calculate
+dependencies properly. The ranges have roughly the form
+
+    [<|<=|==|=>|>] [epoch:]version[-release]
+
+where epoch, version and release are RPM-style version numbers.
+
 =item $urpm->packages_providing($name)
 
 Returns a list of C<URPM::Package> providing <$name>
@@ -393,16 +418,28 @@ Returns a list of C<URPM::Package> corresponding to the wanted <$name>
 Search an RPM by name or by part of name in the list of RPMs represented by
 this $urpm. The behaviour of the search is influenced by several options:
 
-    strict_name => 0 / 1
-    strict_fullname => 0 / 1
-    src => 0 / 1
+=over
+
+=item  strict_name only match short name (N) =>  0 / 1
+
+=item strict_fullname only match fullname (NVRA) (fast) => 0 / 1
+
+=item src => look only for srpms => 0 / 1
+
+=back
+
+=back
+
+=head3 Debuging
+
+These are used when faking a URPM::DB: $urpm can be used as-a $db
+
+=over
 
 =item $urpm->traverse($callback)
 
 Executes the callback for each package in the depslist, passing a
 C<URPM::Package> object as argument the callback.
-
-This is used when faking a URPM::DB: $urpm can be used as-a $db
 
 =item $urpm->traverse_tag($tag, $names, $callback)
 
@@ -414,8 +451,6 @@ Then, $callback is called for each matching package in the depslist.
 
 Callback signature is callback(URPM::Package).
 
-This is used when faking a URPM::DB: $urpm can be used as-a $db
-
 =item $urpm->traverse_tag_find($tag,$name,$callback)
 
 Quite similar to C<traverse_tag>, but stops when $callback returns true.
@@ -424,7 +459,11 @@ Quite similar to C<traverse_tag>, but stops when $callback returns true.
 
 Callback signature is callback(URPM::Package).
 
-This is used when faking a URPM::DB: $urpm can be used as-a $db
+=back
+
+=head3 Checking packages
+
+=over
 
 =item URPM::verify_rpm($file, %options)
 
@@ -450,13 +489,6 @@ Imports a key in the RPM database.
     block => '...'
     filename => '...'
 
-=item URPM::spec2srcheader($specfile)
-
-Returns a URPM::Package object containing the header of the source rpm produced
-by the evaluation of the specfile whose path is given as argument. All
-dependencies stored in this header are exactly the one needed to build the
-specfile.
-
 =back
 
 =head2 The URPM::DB class
@@ -477,6 +509,10 @@ the RPM DB should be open in read/write mode.
 =item rebuild($prefix)
 
 Rebuilds the RPM database (like C<rpm --rebuilddb>). $prefix defaults to C<"">.
+
+=item verify($prefix)
+
+Verify the RPM database (like C<rpmdb --verify>). $prefix defaults to C<"">.
 
 =item $db->traverse($callback)
 
@@ -515,6 +551,30 @@ specified DB.
 =back
 
 =head2 The URPM::Package class
+
+=head3 Getting a URPM::Package object
+
+URPM::Package objects are usually retrieved from $urpm->{depslist} after
+having loaded either the RPM DB and/or synthesis files.
+
+It's also possible to get such an object with:
+
+=over
+
+=item URPM::spec2srcheader($specfile)
+
+Returns a URPM::Package object containing the header of the source rpm produced
+by the evaluation of the specfile whose path is given as argument. All
+dependencies stored in this header are exactly the one needed to build the
+specfile.
+
+=item URPM::stream2header($fp)
+
+Returns a URPM::Package object containing the header read from $fp.
+
+=back
+
+=head3 Methods
 
 Most methods of C<URPM::Package> are accessors for the various properties
 of an RPM package.
@@ -699,6 +759,8 @@ Full requires tags
 
 Just the required package name.
 
+=item $package->suggests()
+
 =item $package->rflags()
 
 =item $package->filesize()
@@ -829,6 +891,28 @@ transaction, passing a C<URPM::Package> object as argument the callback.
 
 =back
 
+=head3 Transaction Element management
+
+=over 4
+
+=item $trans->NElements($fileno)
+
+Returns the number of elements in the transaction.
+
+=item $trans->Element_version($index)
+
+Returns the version of the $index-th element in the transaction.
+
+=item $trans->Element_release($index)
+
+Returns the release of the $index-th element in the transaction.
+
+=item $trans->Element_fullname($index)
+
+Returns the fullname of the $index-th element in the transaction.
+
+=back
+
 =head2 Macro handling functions
 
 =over
@@ -938,6 +1022,14 @@ more fields only used in build_transaction_set and its callers):
 B<transaction>: [ { upgrade => [ id ], remove => [ fullname ] } ]
 
 B<transaction_state>: $state object
+
+
+=head1 SEE ALSO
+
+The L<URPM::Resolve> implements the resolving bits.
+
+The L<urpm> package is a higher level module used by the urpmi command line tool,
+the rpmdrake GUI and the drakx installer.
 
 =head1 COPYRIGHT
 

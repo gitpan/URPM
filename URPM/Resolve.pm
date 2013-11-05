@@ -10,15 +10,25 @@ use Config;
 
 # perl_checker: require URPM
 
+
+=head1 NAME
+
+URPM::Resolve - Resolve routines for URPM/urpmi
+
+=head1 SYNOPSIS
+
+=head1 DESCRIPTION
+
+=over
+
+=cut 
+
+
 #- a few functions from MDK::Common copied here:
 sub any(&@) {
     my $f = shift;
     $f->($_) and return 1 foreach @_;
     0;
-}
-sub listlength {
-    my (@l) = @_;
-    scalar @l;
 }
 sub uniq {
     my (@l) = @_;
@@ -32,30 +42,78 @@ sub find(&@) {
     undef;
 }
 
-#- property2name* functions below parse things like "mageia-release[>= 1]"
-#- which is the format returned by URPM.xs for ->requires, ->provides, ->conflicts...
+=back
+
+=head2 The property functions
+
+The property2name* functions parse things like "mageia-release[>= 1]"
+which is the format returned by URPM.xs for ->requires, ->provides, ->conflicts...
+
+=over 4
+
+=item property2name($property)
+
+Returns the property name (eg: "mageia-release" in above example)
+
+=cut
+
 sub property2name {
     my ($property) = @_;
     $property =~ /^([^\s\[]*)/ && $1;
 }
+
+=item property2name_range($property)
+
+Returns the property name & range (eg: "mageia-release" & ">= 1" in above example)
+
+=cut
 
 sub property2name_range {
     my ($property) = @_;
     $property =~ /^([^\s\[]*)(?:\[\*\])?\[?([^\s\]]*\s*[^\s\]]*)/;
 }
 
+=item property2name_op_version($property)
+
+Returns the property name, operator & range (eg: "mageia-release", ">=", & "1" in above example)
+
+=cut
+
+
 sub property2name_op_version {
     my ($property) = @_;
     $property =~ /^([^\s\[]*)(?:\[\*\])?\s*\[?([^\s\]]*)\s*([^\s\]]*)/;
 }
 
-#- wrappers around $state (cf "The $state object" in "perldoc URPM")
+
+=back
+
+=head2 The state functions
+
+Those are wrappers around $state (cf "The $state object" in L<URPM>).
+
+=over 4
+
+=item packages_to_remove($state)
+
+Returns the ids of the packages to remove
+
+=cut
+
+
 sub packages_to_remove {
     my ($state) = @_;
     grep {
 	$state->{rejected}{$_}{removed} && !$state->{rejected}{$_}{obsoleted};
     } keys %{$state->{rejected} || {}};
 }
+
+=item removed_or_obsoleted_packages($state)
+
+Returns the ids of the packages that are either to remove or are obsoleted
+
+=cut
+
 sub removed_or_obsoleted_packages {
     my ($state) = @_;
     grep {
@@ -63,57 +121,32 @@ sub removed_or_obsoleted_packages {
     } keys %{$state->{rejected} || {}};
 }
 
-#- Find candidates packages from a require string (or id).
-#- Takes care of choices using the '|' separator.
-#- (nb: see also find_required_package())
-#-
-#- side-effects: none
-sub find_candidate_packages {
-    my ($urpm, $id_prop, $o_rejected) = @_;
-    my @packages;
+=back
 
-    foreach (split /\|/, $id_prop) {
-	if (/^\d+$/) {
-	    my $pkg = $urpm->{depslist}[$_];
-	    $pkg->flag_skip and next;
-	    $pkg->arch eq 'src' || $pkg->is_arch_compat or next;
-	    $o_rejected && exists $o_rejected->{$pkg->fullname} and next;
-	    push @packages, $pkg;
-	} elsif (my $name = property2name($_)) {
-	    my $property = $_;
-	    foreach (sort keys %{$urpm->{provides}{$name} || {}}) {
-		my $pkg = $urpm->{depslist}[$_];
-		$pkg->flag_skip and next;
-		$pkg->is_arch_compat or next;
-		$o_rejected && exists $o_rejected->{$pkg->fullname} and next;
-		#- check if at least one provide of the package overlap the property.
-		!$urpm->{provides}{$name}{$_} || $pkg->provides_overlap($property)
-		    and push @packages, $pkg;
-	    }
-	}
-    }
-    @packages;
-}
+=head2 Strict arch related functions
 
-#- returns the "arch" of package $n in rpm db
-sub get_installed_arch {
-    my ($db, $n) = @_;
-    my $arch;
-    $db->traverse_tag_find('name', $n, sub { $arch = $_[0]->arch; 1 });
-    $arch;
-}
+=over 4
 
-#- is "strict-arch" wanted? (cf "man urpmi")
-#- since it's slower we only force it on bi-arch
+=item strict_arch($urpm)
+
+Is "strict-arch" wanted? (cf "man urpmi")
+Since it's slower we only force it on bi-arch
+
+=cut
+
 sub strict_arch {
     my ($urpm) = @_;
     defined $urpm->{options}{'strict-arch'} ? $urpm->{options}{'strict-arch'} : $Config{archname} =~ /x86_64|sparc64|ppc64/;
 }
 my %installed_arch;
 
-#- checks wether $pkg could be installed under strict-arch policy
-#- (ie check wether $pkg->name with different arch is not installed)
-#-
+=item strict_arch_check_installed($db, $pkg) 
+
+Checks whether $pkg could be installed under strict-arch policy
+(ie check whether $pkg->name with different arch is not installed)
+
+=cut
+
 #- side-effects: none (but uses a cache)
 sub strict_arch_check_installed {
     my ($db, $pkg) = @_;
@@ -128,9 +161,13 @@ sub strict_arch_check_installed {
     1;
 }
 
-#- check wether $installed_pkg and $pkg have same arch
-#- (except for src/noarch of course)
-#-
+=item strict_arch_check($installed_pkg, $pkg) = @_;
+
+Check whether $installed_pkg and $pkg have same arch
+(except for src/noarch of course)
+
+=cut
+
 #- side-effects: none
 sub strict_arch_check {
     my ($installed_pkg, $pkg) = @_;
@@ -144,8 +181,31 @@ sub strict_arch_check {
     1;
 }
 
-#- is $pkg->name installed?
-#-
+=back
+
+=head2 Installed packages related functions
+
+=over 4
+
+=item get_installed_arch($db, $n)
+
+Returns the architecture of package $n in rpm DB
+
+=cut
+
+sub get_installed_arch {
+    my ($db, $n) = @_;
+    my $arch;
+    $db->traverse_tag_find('name', $n, sub { $arch = $_[0]->arch; 1 });
+    $arch;
+}
+
+=item is_package_installed($db, $n)
+
+Is $pkg->name installed?
+
+=cut
+
 #- side-effects: none
 sub is_package_installed {
     my ($db, $pkg) = @_;
@@ -165,8 +225,13 @@ sub _is_selected_or_installed {
       $db->traverse_tag('name', [ $name ], undef) > 0;
 }
 
-#- finds $pkg "provides" that matches $provide_name, and returns the version provided
-#- eg: $pkg provides "a = 3", $provide_name is "a > 1", returns "3"
+=item provided_version_that_overlaps($pkg, $provide_name)
+
+Finds $pkg "provides" that matches $provide_name, and returns the version provided.
+eg: $pkg provides "a = 3", $provide_name is "a > 1", returns "3"
+
+=cut
+
 sub provided_version_that_overlaps {
     my ($pkg, $provide_name) = @_;
 
@@ -184,10 +249,15 @@ sub provided_version_that_overlaps {
     $version;
 }
 
-#- find the package (or packages) to install matching $id_prop
-#- returns (list ref of matches, list ref of preferred matches)
-#- (see also find_candidate_packages())
-#-
+
+=item find_required_package($urpm, $db, $state, $id_prop)
+
+Find the package (or packages) to install matching $id_prop.
+Returns (list ref of matches, list ref of preferred matches)
+(see also find_candidate_packages())
+
+=cut
+
 #- side-effects: flag_install, flag_upgrade (and strict_arch_check_installed cache)
 sub find_required_package {
     my ($urpm, $db, $state, $id_prop) = @_;
@@ -319,7 +389,18 @@ sub _find_required_package__sort {
     \@chosen, [ map { $_->[0] } @prefered ];
 }
 
-#- prefer the pkgs corresponding to installed/selected kernels
+=back
+
+=head2 Choosing packages helpers
+
+=over 4
+
+=item _find_required_package__kernel_source($urpm, $db, $choices)
+
+Prefer the pkgs corresponding to installed/selected kernels
+
+=cut
+
 sub _find_required_package__kernel_source {
     my ($urpm, $db, $choices) = @_;
 
@@ -344,7 +425,12 @@ sub _find_required_package__kernel_source {
     } @$choices;
 }
 
-#- prefer the pkgs corresponding to installed/selected kernels
+=item _find_required_package__kmod($urpm, $db, $choices)
+
+Prefer the pkgs corresponding to installed/selected kernels
+
+=cut
+
 sub _find_required_package__kmod {
     my ($urpm, $db, $choices) = @_;
 
@@ -363,12 +449,17 @@ sub _find_required_package__kmod {
     } @$choices;
 }
 
-#- Packages that require locales-xxx when the corresponding locales are
-#- already installed should be preferred over packages that require locales
-#- which are not installed.
-#-
-#- eg: locales-fr & locales-de are installed, 
-#-     prefer firefox-fr & firefox-de which respectively require locales-fr & locales-de
+=item _score_for_locales($urpm, $db, $pkg)
+
+Packages that require locales-xxx when the corresponding locales are
+already installed should be preferred over packages that require locales
+which are not installed.
+
+eg: locales-fr & locales-de are installed, 
+     prefer firefox-fr & firefox-de which respectively require locales-fr & locales-de
+
+=cut
+
 sub _score_for_locales {
     my ($urpm, $db, $pkg) = @_;
 
@@ -438,6 +529,18 @@ sub _choose_required {
     $pkg;
 }
 
+=back
+
+=head2 Misc helpers
+
+=over 4
+
+=item pkg2media($mediums, $pkg)
+
+Return the medium that contains the URPM::Package $pkg
+
+=cut
+
 sub pkg2media {
    my ($mediums, $p) = @_; 
    my $id = $p->id;
@@ -445,19 +548,80 @@ sub pkg2media {
    find { $id >= ($_->{start} || 0) && $id <= ($_->{end} || 0) } @$mediums;
 }
 
+
+=back
+
+=head2 Dependancy resolver related functions
+
+=over 4
+
+=item find_candidate_packages($urpm, $id_prop, $o_rejected)
+
+Find candidates packages from a require string (or id).
+Takes care of choices using the '|' separator.
+(nb: see also find_required_package())
+
+=cut
+
+#- side-effects: none
+sub find_candidate_packages {
+    my ($urpm, $id_prop, $o_rejected) = @_;
+    my @packages;
+
+    foreach (split /\|/, $id_prop) {
+	if (/^\d+$/) {
+	    my $pkg = $urpm->{depslist}[$_];
+	    $pkg->flag_skip and next;
+	    $pkg->arch eq 'src' || $pkg->is_arch_compat or next;
+	    $o_rejected && exists $o_rejected->{$pkg->fullname} and next;
+	    push @packages, $pkg;
+	} elsif (my $name = property2name($_)) {
+	    my $property = $_;
+	    foreach (sort keys %{$urpm->{provides}{$name} || {}}) {
+		my $pkg = $urpm->{depslist}[$_];
+		$pkg->flag_skip and next;
+		$pkg->is_arch_compat or next;
+		$o_rejected && exists $o_rejected->{$pkg->fullname} and next;
+		#- check if at least one provide of the package overlap the property.
+		!$urpm->{provides}{$name}{$_} || $pkg->provides_overlap($property)
+		    and push @packages, $pkg;
+	    }
+	}
+    }
+    @packages;
+}
+
+
+=item whatrequires($urpm, $state, $property_name)
+
+Return packages requiring $property_name
+
+=cut
+
 sub whatrequires {
     my ($urpm, $state, $property_name) = @_;
 
     map { $urpm->{depslist}[$_] } whatrequires_id($state, $property_name);
 }
+
+=item whatrequires_id($state, $property_name)
+
+Return ids of packages requiring $property_name
+
+=cut
+
 sub whatrequires_id {
     my ($state, $property_name) = @_;
 
     keys %{$state->{whatrequires}{$property_name} || {}};
 }
 
-#- return unresolved requires of a package (a new one or an existing one).
-#-
+=item unsatisfied_requires($urpm, $db, $state, $pkg, %options)
+
+Return unresolved requires of a package (a new one or an existing one).
+
+=cut
+
 #- side-effects: none (but uses a $state->{cached_installed})
 sub unsatisfied_requires {
     my ($urpm, $db, $state, $pkg, %options) = @_;
@@ -518,9 +682,13 @@ sub unsatisfied_requires {
     keys %unsatisfied;
 }
 
-#- this function is "suggests vs requires" safe:
-#-   'whatrequires' will give both requires & suggests, but unsatisfied_requires
-#-   will check $p->requires and so filter out suggests
+=item with_db_unsatisfied_requires($urpm, $db, $state, $name, $do)
+
+This function is "suggests vs requires" safe:
+Traversing DB on 'whatrequires' will give both requires & suggests, but ->unsatisfied_requires()
+will check $p->requires and so filter out suggests
+
+=cut
 
 #- side-effects: only those done by $do
 sub with_db_unsatisfied_requires {
@@ -534,6 +702,14 @@ sub with_db_unsatisfied_requires {
 	}
     });
 }
+
+=item with_state_unsatisfied_requires($urpm, $db, $state, $name, $do)
+
+# LOG: do not ignore dropped provide from updated package (mdvbz#40842)
+#	 		 (http://svn.mandriva.com/viewvc/soft/rpm/perl-URPM/trunk/URPM/Resolve.pm?r1=242655&r2=242656&)
+# TV: was introduced in order to replace one with_db_unsatisfied_requires() call by with_any_unsatisfied_requires()
+
+=cut
 
 #- side-effects: only those done by $do
 sub with_state_unsatisfied_requires {
@@ -549,15 +725,25 @@ sub with_state_unsatisfied_requires {
     }
 }
 
+
+=item with_any_unsatisfied_requires($urpm, $db, $state, $name, $do)
+
+See above...
+
+=cut
+
 sub with_any_unsatisfied_requires {
     my ($urpm, $db, $state, $name, $do) = @_;
     with_db_unsatisfied_requires($urpm, $db, $state, $name, sub { my ($p, @l) = @_; $do->($p, 0, @l) });
     with_state_unsatisfied_requires($urpm, $db, $state, $name, sub { my ($p, @l) = @_; $do->($p, 1, @l) });
 }
 
+=item backtrack_selected($urpm, $db, $state, $dep, $diff_provides, %options)
 
-# used when a require is not available
-#
+Used when a require is not available
+
+=cut
+
 #- side-effects: $state->{backtrack}, $state->{selected}
 #-   + those of disable_selected_and_unrequested_dependencies ($state->{whatrequires}, flag_requested, flag_required)
 #-   + those of _set_rejected_from ($state->{rejected})
@@ -755,6 +941,13 @@ sub _set_rejected_old_package {
     }
 }
 
+=item set_rejected($urpm, $state, $rdep)
+
+Keep track of what causes closure.
+Set removed and obsoleted level.
+
+=cut
+
 #- side-effects: $state->{rejected}
 sub set_rejected {
     my ($urpm, $state, $rdep) = @_;
@@ -807,6 +1000,12 @@ sub set_rejected_and_compute_diff_provides {
 
     _compute_diff_provides_of_removed_pkg($urpm, $state, $diff_provides_h, $rdep->{rejected_pkg});
 }
+
+=item resolve_rejected($urpm, $db, $state, $pkg, %rdep)
+
+Close rejected (as urpme previously) for package to be removable without error.
+
+=cut
 
 #- see resolve_rejected_ below
 sub resolve_rejected {
@@ -867,7 +1066,40 @@ sub resolve_rejected_ {
 	}
 }
 
-# see resolve_requested__no_suggests below for information about usage
+=item resolve_requested($urpm, $db, $state, $requested, %options)
+
+Resolve dependencies of requested packages; keep resolution state to
+speed up process.
+
+A requested package is marked to be installed; once done, an upgrade flag or
+an installed flag is set according to the needs of the installation of this
+package.
+
+Other required packages will have a required flag set along with an upgrade
+flag or an installed flag.
+
+Base flag should always be "installed" or "upgraded".
+
+The following options are recognized :
+
+=over
+
+=item callback_choices : subroutine to be called to ask the user to choose
+     between several possible packages. Returns an array of URPM::Package
+     objects, or an empty list eventually.
+
+=item keep :
+
+=item nodeps :
+
+=item no_suggests: ignore suggests tags
+
+=back
+
+It actually calls resolve_requested__no_suggests() and resolve_requested_suggests().
+
+=cut
+
 sub resolve_requested {
     my ($urpm, $db, $state, $requested, %options) = @_;
 
@@ -878,6 +1110,12 @@ sub resolve_requested {
     }
     @selected;
 }
+
+=item resolve_requested_suggests($urpm, $db, $state, $selected, %options)
+
+Select newly suggested package is installed as if (hard) required.
+
+=cut
 
 sub resolve_requested_suggests {
     my ($urpm, $db, $state, $selected, %options) = @_;
@@ -895,7 +1133,7 @@ sub resolve_requested_suggests {
 	    # workaround: if you do "urpmi virtual_pkg" and one virtual_pkg is already installed,
 	    # it will ask anyway for the other choices
 	    foreach my $suggest (keys %suggests) {
-		$db->traverse_tag('whatprovides', [ $suggest ], sub {
+		$db->traverse_tag_find('whatprovides', $suggest, sub {
 		    delete $suggests{$suggest};
 		});
 	    }
@@ -914,21 +1152,13 @@ sub resolve_requested_suggests {
     @$selected;
 }
 
-#- Resolve dependencies of requested packages; keep resolution state to
-#- speed up process.
-#- A requested package is marked to be installed; once done, an upgrade flag or
-#- an installed flag is set according to the needs of the installation of this
-#- package.
-#- Other required packages will have a required flag set along with an upgrade
-#- flag or an installed flag.
-#- Base flag should always be "installed" or "upgraded".
-#- The following options are recognized :
-#-   callback_choices : subroutine to be called to ask the user to choose
-#-     between several possible packages. Returns an array of URPM::Package
-#-     objects, or an empty list eventually.
-#-   keep :
-#-   nodeps :
-#-
+=item resolve_requested__no_suggests($urpm, $db, $state, $requested, %options)
+
+Like resolve_requested() but doesn't handle suggests
+
+=cut
+
+# see resolve_requested above for information about usage (modulo 'no_suggests' option)
 #- side-effects: flag_requested
 #-   + those of resolve_requested__no_suggests_
 sub resolve_requested__no_suggests {
@@ -1356,78 +1586,16 @@ sub _handle_conflict {
     }
 }
 
-#- side-effects: none
-sub _dep_to_name {
-    my ($urpm, $dep) = @_;
-    join('|', map { _id_to_name($urpm, $_) } split('\|', $dep->{required}));
-}
-#- side-effects: none
-sub _id_to_name {
-    my ($urpm, $id_prop) = @_;
-    if ($id_prop =~ /^\d+/) {
-	my $pkg = $urpm->{depslist}[$id_prop];
-	$pkg && $pkg->name;
-    } else {
-	$id_prop;
-    }
-}
-#- side-effects: none
-sub _ids_to_names {
-    my $urpm = shift;
+=item disable_selected ($urpm, $db, $state, @pkgs_todo)
 
-    map { $urpm->{depslist}[$_]->name } @_;
-}
-#- side-effects: none
-sub _ids_to_fullnames {
-    my $urpm = shift;
+Do the opposite of the resolve_requested: unselect a package and
+extend to any package not requested that is no longer needed by any
+other package.
 
-    map { scalar $urpm->{depslist}[$_]->fullname } @_;
-}
+Return the packages that have been deselected.
 
-#- side-effects: flag_installed, flag_upgrade
-sub _set_flag_installed_and_upgrade_if_no_newer {
-    my ($db, $pkg) = @_;
+=cut
 
-    !$pkg->flag_upgrade && !$pkg->flag_installed or return;
-
-    my $upgrade = 1;
-    $db->traverse_tag('name', [ $pkg->name ], sub {
-	my ($p) = @_;
-	$pkg->set_flag_installed;
-	$upgrade &&= $pkg->compare_pkg($p) > 0;
-    });
-    $pkg->set_flag_upgrade($upgrade);
-}
-
-#- side-effects:
-#-   + those of _set_rejected_old_package ($state->{rejected})
-sub _no_more_recent_installed_and_providing {
-    my ($urpm, $db, $state, $pkg, $required) = @_;
-
-    my $allow = 1;
-    $db->traverse_tag('name', [ $pkg->name ], sub {
-	my ($p) = @_;
-	#- allow if a less recent package is installed,
-	if ($allow && $pkg->compare_pkg($p) <= 0) {
-	    if ($required =~ /^\d+/ || $p->provides_overlap($required)) {
-		$urpm->{debug_URPM}("not selecting " . $pkg->fullname . " since the more recent " . $p->fullname . " is installed") if $urpm->{debug_URPM};
-		_set_rejected_old_package($state, $pkg, $p);
-		$allow = 0;
-	    } else {
-		$urpm->{debug_URPM}("the more recent " . $p->fullname . 
-		  " is installed, but does not provide $required whereas " . 
-		    $pkg->fullname . " does") if $urpm->{debug_URPM};
-	    }
-	}
-    });
-    $allow;
-}
-
-#- do the opposite of the resolve_requested:
-#-   unselect a package and extend to any package not requested that is no
-#-   longer needed by any other package.
-#- return the packages that have been deselected.
-#-
 #- side-effects: flag_requested, flag_required, $state->{selected}, $state->{whatrequires}
 #-   + those of _remove_all_rejected_from ($state->{rejected})
 sub disable_selected {
@@ -1476,9 +1644,13 @@ sub disable_selected {
     @unselected;
 }
 
-#- determine dependencies that can safely been removed and are not requested
-#- return the packages that have been deselected.
-#-
+=item disable_selected_and_unrequested_dependencies($urpm, $db, $state, @pkgs_todo)
+
+Determine dependencies that can safely been removed and are not requested.
+Return the packages that have been deselected.
+
+=cut
+
 #- side-effects:
 #-   + those of disable_selected (flag_requested, flag_required, $state->{selected}, $state->{whatrequires}, $state->{rejected})
 sub disable_selected_and_unrequested_dependencies {
@@ -1525,19 +1697,145 @@ sub disable_selected_and_unrequested_dependencies {
     @all_unselected;
 }
 
-#- compute selected size by removing any removed or obsoleted package.
-#-
+=back
+
+=head2 Dependancy related functions
+
+=over 4
+
+=item _dep_to_name($urpm, $dep)
+
+Take a string of package ids (eg: "4897|4564|454") that represent packages providing some dependancy.
+Return string of package names corresponding to package ids.
+eg: "libgtk1-devel|libgtk2-devel|libgtk3-devel" for ids corresponding to "gtk-devel"
+
+$dep is a hashref: { required => $ID, requested => $requested->{$ID} }
+# CHECK IT REALLY IS AN ID HERE => WE SHOULD REALLY DOCUMENT $requested
+
+=cut
+
+#- side-effects: none
+sub _dep_to_name {
+    my ($urpm, $dep) = @_;
+    join('|', map { _id_to_name($urpm, $_) } split('\|', $dep->{required}));
+}
+
+=item _id_to_name($urpm, $id_prop)
+
+Returns package name corresponding to package ID (or ID if not numerical)
+
+=cut
+
+#- side-effects: none
+sub _id_to_name {
+    my ($urpm, $id_prop) = @_;
+    if ($id_prop =~ /^\d+/) {
+	my $pkg = $urpm->{depslist}[$id_prop];
+	$pkg && $pkg->name;
+    } else {
+	$id_prop;
+    }
+}
+
+=item _ids_to_names($urpm, @ids)
+
+Return package names corresponding to package ids
+
+=cut
+
+#- side-effects: none
+sub _ids_to_names {
+    my $urpm = shift;
+
+    map { $urpm->{depslist}[$_]->name } @_;
+}
+
+=item _ids_to_fullnames($urpm, @ids)
+
+Return package fullnames corresponding to package ids.
+identical to _ids_to_names() modulo short name vs full name
+
+=cut
+
+#- side-effects: none
+sub _ids_to_fullnames {
+    my $urpm = shift;
+
+    map { scalar $urpm->{depslist}[$_]->fullname } @_;
+}
+
+#- side-effects: flag_installed, flag_upgrade
+sub _set_flag_installed_and_upgrade_if_no_newer {
+    my ($db, $pkg) = @_;
+
+    !$pkg->flag_upgrade && !$pkg->flag_installed or return;
+
+    my $upgrade = 1;
+    $db->traverse_tag('name', [ $pkg->name ], sub {
+	my ($p) = @_;
+	$pkg->set_flag_installed;
+	$upgrade &&= $pkg->compare_pkg($p) > 0;
+    });
+    $pkg->set_flag_upgrade($upgrade);
+}
+
+#- side-effects:
+#-   + those of _set_rejected_old_package ($state->{rejected})
+sub _no_more_recent_installed_and_providing {
+    my ($urpm, $db, $state, $pkg, $required) = @_;
+
+    my $allow = 1;
+    $db->traverse_tag('name', [ $pkg->name ], sub {
+	my ($p) = @_;
+	#- allow if a less recent package is installed,
+	if ($allow && $pkg->compare_pkg($p) <= 0) {
+	    if ($required =~ /^\d+/ || $p->provides_overlap($required)) {
+		$urpm->{debug_URPM}("not selecting " . $pkg->fullname . " since the more recent " . $p->fullname . " is installed") if $urpm->{debug_URPM};
+		_set_rejected_old_package($state, $pkg, $p);
+		$allow = 0;
+	    } else {
+		$urpm->{debug_URPM}("the more recent " . $p->fullname . 
+		  " is installed, but does not provide $required whereas " . 
+		    $pkg->fullname . " does") if $urpm->{debug_URPM};
+	    }
+	}
+    });
+    $allow;
+}
+
+=back
+
+=head2 Size related functions
+
+=over 4
+
+=item selected_size($urpm, $state)
+
+Compute selected size by removing any removed or obsoleted package.
+Returns total package size
+
+=cut
+
 #- side-effects: none
 sub selected_size {
     my ($urpm, $state) = @_;
     my ($size) = _selected_size_filesize($urpm, $state, 0);
     $size;
 }
+
+=item selected_size_filesize($urpm, $state)
+
+Compute selected size by removing any removed or obsoleted package.
+Returns both total package size & total filesize.
+
+=cut
+
 #- side-effects: none
 sub selected_size_filesize {
     my ($urpm, $state) = @_;
     _selected_size_filesize($urpm, $state, 1);
 }
+
 #- side-effects: none
 sub _selected_size_filesize {
     my ($urpm, $state, $compute_filesize) = @_;
@@ -1567,6 +1865,14 @@ sub _selected_size_filesize {
 
     $size, $bad_filesize ? 0 : $filesize;
 }
+
+=back
+
+=head2 Other functions
+
+=over 4
+
+=cut
 
 #- compute installed flags for all packages in depslist.
 #-
@@ -1605,15 +1911,26 @@ sub compute_flag {
     }
 }
 
-#- Adds packages flags according to an array containing packages names.
-#- $val is an array reference (as returned by get_packages_list) containing
-#- package names, or a regular expression matching against the fullname, if
-#- enclosed in slashes.
-#- %options :
-#-   callback : sub to be called for each package where the flag is set
-#-   skip : if true, set the 'skip' flag
-#-   disable_obsolete : if true, set the 'disable_obsolete' flag
-#-
+=item compute_flags($urpm, $val, %options)
+
+Adds packages flags according to an array containing packages names.
+$val is an array reference (as returned by get_packages_list) containing
+package names, or a regular expression matching against the fullname, if
+enclosed in slashes.
+%options :
+
+=over
+
+=item callback : sub to be called for each package where the flag is set
+
+=item skip : if true, set the 'skip' flag
+
+=item disable_obsolete : if true, set the 'disable_obsolete' flag
+
+=back
+
+=cut
+
 #- side-effects: 
 #-   + those of compute_flag (flag_skip, flag_disable_obsolete)
 sub compute_flags {
@@ -1678,11 +1995,15 @@ sub _choose_bests_obsolete {
     map { _choose_best_pkg_($urpm, $pkg_installed, @$_) } values %by_name;
 }
 
-#- select packages to upgrade, according to package already registered.
-#- by default, only takes best package and its obsoleted and compute
-#- all installed or upgrade flag.
-#- (used for --auto-select)
-#-
+=item request_packages_to_upgrade($urpm, $db, $state, $requested, %options)
+
+Select packages to upgrade, according to package already registered.
+By default, only takes best package and its obsoleted and compute
+all installed or upgrade flag.
+(used for --auto-select)
+
+=cut
+
 #- side-effects: $requisted, flag_installed, flag_upgrade
 sub request_packages_to_upgrade {
     my ($urpm, $db, $state, $requested, %options) = @_;
@@ -1737,6 +2058,14 @@ sub request_packages_to_upgrade {
     $requested;
 }
 
+=back
+
+=head2 Graph functions
+
+=over 4
+
+=cut
+
 #- side-effects: none
 sub _sort_by_dependencies_get_graph {
     my ($urpm, $state, $l) = @_;
@@ -1786,8 +2115,14 @@ sub _add_group {
     # warn "# groups: ", join(' ', map { join('+', @$_) } uniq(values %$groups)), "\n";
 }
 
-#- nb: this handles $nodes list not containing all $nodes that can be seen in $edges
-#-
+=item sort_graph($nodes, $edges)
+
+Sort the graph
+
+nb: this handles $nodes list not containing all $nodes that can be seen in $edges
+
+=cut
+
 #- side-effects: none
 sub sort_graph {
     my ($nodes, $edges) = @_;
@@ -1846,6 +2181,10 @@ sub sort_graph {
     @sorted;
 }
 
+=item check_graph_is_sorted($sorted, $nodes, $edges)
+
+=cut
+
 #- side-effects: none
 sub check_graph_is_sorted {
     my ($sorted, $nodes, $edges) = @_;
@@ -1897,6 +2236,10 @@ sub _sort_by_dependencies__add_obsolete_edges {
     }
 }
 
+=item sort_by_dependencies($urpm, $state, @list_unsorted)
+
+=cut
+
 #- side-effects: none
 sub sort_by_dependencies {
     my ($urpm, $state, @list_unsorted) = @_;
@@ -1911,6 +2254,10 @@ sub sort_by_dependencies {
     sort_graph(\@list_unsorted, $requires);
 }
 
+=item sorted_rpms_to_string($urpm, @sorted)
+
+=cut
+
 sub sorted_rpms_to_string {
     my ($urpm, @sorted) = @_;
 
@@ -1919,9 +2266,13 @@ sub sorted_rpms_to_string {
     } @sorted);
 }
 
-#- build transaction set for given selection
-#- options: start, end, idlist, split_length, keep
-#-
+=item build_transaction_set($urpm, $db, $state, %options)
+
+Build transaction set for given selection
+Options: start, end, idlist, split_length, keep
+
+=cut
+
 #- side-effects: $state->{transaction}, $state->{transaction_state}
 sub build_transaction_set {
     my ($urpm, $db, $state, %options) = @_;
@@ -1984,7 +2335,7 @@ sub build_transaction_set {
 	#- check that the transaction set has been correctly created.
 	#- (ie that no other package was removed)
 	if (keys(%{$state->{selected}}) == keys(%{$state->{transaction_state}{selected}}) &&
-	    listlength(packages_to_remove($state)) == listlength(packages_to_remove($state->{transaction_state}))
+	    scalar(packages_to_remove($state)) == scalar(packages_to_remove($state->{transaction_state}))
 	) {
 	    foreach (keys(%{$state->{selected}})) {
 		exists $state->{transaction_state}{selected}{$_} and next;
@@ -2018,3 +2369,17 @@ sub build_transaction_set {
 }
 
 1;
+
+__END__
+
+=back
+
+=head1 COPYRIGHT
+
+Copyright (C) 2002-2005 MandrakeSoft SA
+
+Copyright (C) 2005-2010 Mandriva SA
+
+Copyright (C) 2011-2013 Mageia
+
+=cut

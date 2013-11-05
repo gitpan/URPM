@@ -2601,11 +2601,22 @@ Trans_check(trans, ...)
   }
 
 void
-Trans_order(trans)
+Trans_order(trans, ...)
   URPM::Transaction trans
   PREINIT:
+  rpmtransFlags transFlags = RPMTRANS_FLAG_NONE;
   I32 gimme = GIMME_V;
+  int i;
   PPCODE:
+  for (i = 1; i < items-1; i+=2) {
+    STRLEN len;
+    char *s = SvPV(ST(i), len);
+
+    if (len == 8 && !memcmp(s, "deploops", 8)) {
+      if (SvIV(ST(i+1))) transFlags |= RPMTRANS_FLAG_DEPLOOPS;
+    }
+  }
+  rpmtsSetFlags(trans->ts, transFlags);
   if (rpmtsOrder(trans->ts) == 0) {
     if (gimme == G_SCALAR)
       mXPUSHs(newSViv(1));

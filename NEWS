@@ -1,7 +1,13 @@
+Version 4.29 - 5 November 2013
+
+- enhanced doc
+- "implement" create_transaction() in --env case
+- $trans->order: add support for "deploops" option
+
 Version 4.28 - 3 October 2013
 
 - adapt to perl-5.18 random hash keys ordering
-  now find_required_package() always sort matching packages  by their names
+  now find_required_package() always sort matching packages by their names
   before sorting them by arch and score
 - coverity fixes
 
