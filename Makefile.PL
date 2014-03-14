@@ -14,7 +14,9 @@ unless (defined $rpm_path) {
     }
 }
 
-defined $rpm_path or die "Can't find rpm on this system\n";
+defined $rpm_path or die "Can't find rpm on this system\n" .
+			'Ensure rpm-devel >= 4.9 is installed';
+
 
 sub hexversion {
 	my ($major, $minor, $micro) = (@_[0] =~ /(\d+)\.(\d+)\.?(\d+)?/);
@@ -65,6 +67,13 @@ WriteMakefile(
     PREREQ_PM	=> {
 	'MDV::Packdrakeng' => '1.00',
     },
+    MIN_PERL_VERSION => '5.008001',
+    META_MERGE		=> {
+        q(meta-spec)          => {
+            version => '2',
+            url     => 'http://search.cpan.org/perldoc?CPAN::Meta::Spec',
+        },
+	    release_status => 'testing' },
     CCFLAGS	=> $ccflags,
     VERSION_FROM	=> 'URPM.pm',
     LIBS	=> [ $ldflags ],
