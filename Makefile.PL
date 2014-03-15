@@ -1,22 +1,21 @@
 use strict;
 use ExtUtils::MakeMaker;
+use List::Util 'first';
 
 # where to find the rpm utility
 
 my $rpm_path = $ENV{RPM_PATH}; # this overrides
 
 unless (defined $rpm_path) {
-    for (qw(/bin/rpm /usr/bin/rpm)) {
-	if (-x) {
-	    $rpm_path = $_;
-	    last;
-	}
-    }
+    $rpm_path = first { -x $_ } qw(/bin/rpm /usr/bin/rpm);
 }
 
 defined $rpm_path or die "Can't find rpm on this system\n" .
 			'Ensure rpm-devel >= 4.9 is installed';
 
+my $rpmbuild = first { -x $_ } qw(/bin/rpm /usr/bin/rpm);
+defined $rpmbuild or die "Can't find rpmbuild on this system\n" .
+			'Ensure rpm-build >= 4.9 is installed';
 
 sub hexversion {
 	my ($major, $minor, $micro) = (@_[0] =~ /(\d+)\.(\d+)\.?(\d+)?/);
