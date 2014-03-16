@@ -2,6 +2,10 @@ use strict;
 use ExtUtils::MakeMaker;
 use List::Util 'first';
 
+my $is_debian = -f '/etc/debian_version';
+my $rpmbuild_pkg = $is_debian ? "rpmbuild" : "rpm-build";
+my $rpmdev_pkg   = $is_debian ? "librpm-dev" : "rpm-devel";
+
 # where to find the rpm utility
 
 my $rpm_path = $ENV{RPM_PATH}; # this overrides
@@ -11,15 +15,15 @@ unless (defined $rpm_path) {
 }
 
 defined $rpm_path or die "Can't find rpm on this system\n" .
-			'Ensure rpm-devel >= 4.9 is installed';
+			"Ensure $rpmdev_pkg >= 4.9 is installed";
 
-my $rpmbuild = first { -x $_ } qw(/bin/rpm /usr/bin/rpm);
+my $rpmbuild = first { -x $_ } qw(/bin/rpmbuild /usr/bin/rpmbuild);
 defined $rpmbuild or die "Can't find rpmbuild on this system\n" .
-			'Ensure rpm-build >= 4.9 is installed';
+			"Ensure $rpmbuild_pkg >= 4.9 is installed";
 
 sub hexversion {
 	my ($major, $minor, $micro) = (@_[0] =~ /(\d+)\.(\d+)\.?(\d+)?/);
-	return int($major<<16) + int($minor<<8) + int($micro<<0)
+	return int($major<<16) + int($minor<<8) + int($micro<<0);
 }
 
 my $version = `LC_ALL=C $rpm_path --version`;
