@@ -1,6 +1,19 @@
 use strict;
 use ExtUtils::MakeMaker;
 use List::Util 'first';
+use Devel::AssertOS qw(Linux);
+use ExtUtils::PkgConfig;
+
+my %cfg;
+my $cfg_success = eval {
+%cfg = ExtUtils::PkgConfig->find (
+    "rpm >= 4.10");
+  1;
+};
+if (!$cfg_success) {
+  warn $@;
+  exit 0;
+}
 
 my $is_debian = -f '/etc/debian_version';
 my $rpmbuild_pkg = $is_debian ? "rpmbuild" : "rpm-build";
@@ -55,7 +68,6 @@ ChangeLog:
 }
 
 my @rpmflags;
-my $ldflags = `pkg-config --libs rpm` . ' -lrpmbuild';
 if ($hversion ge hexversion("4.9.0") && $hversion lt hexversion("5.0")) {
     # rpm.org version 4.9.0
     push @rpmflags, "-DRPM490";
@@ -79,7 +91,7 @@ WriteMakefile(
 	    release_status => 'testing' },
     CCFLAGS	=> $ccflags,
     VERSION_FROM	=> 'URPM.pm',
-    LIBS	=> [ $ldflags ],
+    LIBS	=> [ $cfg{libs}, "-lrpmbuild" ],
     INC		=> '-I/usr/include/rpm',
     dist	=> { COMPRESS => "xz -f", SUFFIX => ".xz" },
     realclean	=> { FILES => "t/RPMS/noarch/*" },
