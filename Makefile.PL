@@ -1,8 +1,9 @@
 use strict;
 use ExtUtils::MakeMaker;
 use List::Util 'first';
-use Devel::AssertOS qw(Linux);
 use ExtUtils::PkgConfig;
+
+die("OS unsupported\n") if $^O ne 'linux';
 
 my %cfg;
 my $cfg_success = eval {
