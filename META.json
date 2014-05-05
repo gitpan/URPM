@@ -19,6 +19,23 @@
          "inc"
       ]
    },
-   "release_status" : "testing",
-   "version" : "v4.29.6"
+   "prereqs" : {
+      "build" : {
+         "requires" : {
+            "ExtUtils::MakeMaker" : "0"
+         }
+      },
+      "configure" : {
+         "requires" : {
+            "ExtUtils::MakeMaker" : "0"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "MDV::Packdrakeng" : "1.00"
+         }
+      }
+   },
+   "release_status" : "stable",
+   "version" : "4.30"
 }

@@ -719,7 +719,7 @@ return_problems(rpmps ps, int translate_message, int raw_message) {
 
 static char *
 pack_list(const Header header, rpmTag tag_name, rpmTag tag_flags, rpmTag tag_version) {
-  char buff[65536];
+  char buff[65536*2];
   char *p = buff;
 
   struct rpmtd_s td;
@@ -2071,7 +2071,7 @@ Pkg_build_info(pkg, fileno, provides_files=NULL)
   char *provides_files
   CODE:
   if (pkg->info) {
-    char buff[65536];
+    char buff[65536*2];
     size_t size;
 
     /* info line should be the last to be written */
@@ -2811,7 +2811,7 @@ Urpm_parse_synthesis__XS(urpm, filename, ...)
     HV *obsoletes = fobsoletes && SvROK(*fobsoletes) && SvTYPE(SvRV(*fobsoletes)) == SVt_PVHV ? (HV*)SvRV(*fobsoletes) : NULL;
 
     if (depslist != NULL) {
-      char buff[65536];
+      char buff[65536*2];
       char *p, *eol, *t;
       int buff_len;
       struct s_Package pkg;

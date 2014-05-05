@@ -1,3 +1,7 @@
+Version 4.30 - 1 May 2014
+
+- fix 64k size limit on provides size that break installing 32 bit kernel for
+  drakx-installer-binaries
 - fix a warning in debug mode
 
 Version 4.29 - 5 November 2013
