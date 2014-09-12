@@ -6,7 +6,6 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  *
- * $Id: URPM.xs 259125 2009-08-10 14:37:07Z cfergeau $
  * 
  */
 #include "EXTERN.h"
@@ -51,7 +50,7 @@ struct s_Package {
   unsigned flag;
   char *info;
   char *requires;
-  char *suggests;
+  char *recommends;
   char *obsoletes;
   char *conflicts;
   char *provides;
@@ -393,7 +392,7 @@ return_list_str(char *s, const Header header, rpmTag tag_name, rpmTag tag_flags,
   } else if (header) {
     struct rpmtd_s list, flags, list_evr;
 
-    if (headerGet(header, tag_name, &list, HEADERGET_DEFAULT)) {
+    if (headerGet(header, tag_name, &list, HEADERGET_EXT)) {
       memset((void*)&flags, 0, sizeof(flags));
       memset((void*)&list_evr, 0, sizeof(list_evr));
       if (tag_flags) headerGet(header, tag_flags, &flags, HEADERGET_DEFAULT);
@@ -723,7 +722,7 @@ pack_list(const Header header, rpmTag tag_name, rpmTag tag_flags, rpmTag tag_ver
   char *p = buff;
 
   struct rpmtd_s td;
-  if (headerGet(header, tag_name, &td, HEADERGET_DEFAULT)) {
+  if (headerGet(header, tag_name, &td, HEADERGET_EXT)) {
     char **list = td.data;
     char **list_evr = NULL;
     rpmTag *flags = NULL;
@@ -764,8 +763,8 @@ pack_header(const URPM__Package pkg) {
     if (pkg->filesize == 0) pkg->filesize = get_filesize(pkg->h);
     if (pkg->requires == NULL)
       pkg->requires = pack_list(pkg->h, RPMTAG_REQUIRENAME, RPMTAG_REQUIREFLAGS, RPMTAG_REQUIREVERSION);
-    if (pkg->suggests == NULL)
-      pkg->suggests = pack_list(pkg->h, RPMTAG_SUGGESTSNAME, 0, 0);
+    if (pkg->recommends == NULL)
+      pkg->recommends = pack_list(pkg->h, RPMTAG_RECOMMENDNAME, 0, 0);
     if (pkg->obsoletes == NULL)
       pkg->obsoletes = pack_list(pkg->h, RPMTAG_OBSOLETENAME, RPMTAG_OBSOLETEFLAGS, RPMTAG_OBSOLETEVERSION);
     if (pkg->conflicts == NULL)
@@ -1051,8 +1050,8 @@ parse_line(AV *depslist, HV *provides, HV *obsoletes, URPM__Package pkg, char *b
       char **ptr = NULL;
       if (!strcmp(tag, "requires"))
         ptr = &pkg->requires;
-      else if (!strcmp(tag, "suggests"))
-        ptr = &pkg->suggests;
+      else if (!strcmp(tag, "suggests") || !strcmp(tag, "recommends"))
+        ptr = &pkg->recommends;
       else if (!strcmp(tag, "obsoletes"))
         ptr = &pkg->obsoletes;
       else if (!strcmp(tag, "conflicts"))
@@ -1418,7 +1417,7 @@ Pkg_DESTROY(pkg)
   CODE:
   free(pkg->info);
   free(pkg->requires);
-  free(pkg->suggests);
+  free(pkg->recommends);
   free(pkg->obsoletes);
   free(pkg->conflicts);
   free(pkg->provides);
@@ -1712,6 +1711,8 @@ Pkg_compare(pkg, evr)
       croak("undefined package");
 
   char *epoch = NULL, *version, *release;
+  if (!strncmp(evr, "URPM::Package=", 14))
+      croak("compare() must not be called with a package reference as argument; use compare_pkg() instead");
 
   /* extract epoch and version from evr */
   version = evr;
@@ -1861,6 +1862,7 @@ Pkg_obsoletes_nosense(pkg)
       conflicts_nosense = 1
       provides_nosense  = 2
       requires_nosense  = 3
+      recommends_nosense= 4
       suggests          = 4
   PPCODE:
   PUTBACK;
@@ -1870,7 +1872,7 @@ Pkg_obsoletes_nosense(pkg)
   case 1:  tag = RPMTAG_CONFLICTNAME; s = pkg->conflicts; break;
   case 2:  tag = RPMTAG_PROVIDENAME;  s = pkg->provides;  break;
   case 3:  tag = RPMTAG_REQUIRENAME;  s = pkg->requires;  break;
-  case 4:  tag = RPMTAG_SUGGESTSNAME; s = pkg->suggests;  break;
+  case 4:  tag = RPMTAG_RECOMMENDNAME;s = pkg->recommends; break;
   default: tag = RPMTAG_OBSOLETENAME; s = pkg->obsoletes; break;
   }
   return_list_str(s, pkg->h, tag, 0, 0, callback_list_str_xpush, NULL);
@@ -2065,10 +2067,11 @@ Pkg_free_header(pkg)
   pkg->h = NULL;
 
 void
-Pkg_build_info(pkg, fileno, provides_files=NULL)
+Pkg_build_info(pkg, fileno, provides_files=NULL, recommends=0)
   URPM::Package pkg
   int fileno
   char *provides_files
+  int recommends
   CODE:
   if (pkg->info) {
     char buff[65536*2];
@@ -2097,8 +2100,8 @@ Pkg_build_info(pkg, fileno, provides_files=NULL)
       size = snprintf(buff, sizeof(buff), "@requires@%s\n", pkg->requires);
       if (size < sizeof(buff)) write_nocheck(fileno, buff, size);
     }
-    if (pkg->suggests && *pkg->suggests) {
-      size = snprintf(buff, sizeof(buff), "@suggests@%s\n", pkg->suggests);
+    if (pkg->recommends && *pkg->recommends) {
+      size = snprintf(buff, sizeof(buff), recommends ? "@recommends@%s\n" : "@suggests@%s\n", pkg->recommends);
       if (size < sizeof(buff)) write_nocheck(fileno, buff, size);
     }
     if (pkg->summary && *pkg->summary) {

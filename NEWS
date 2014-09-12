@@ -1,3 +1,20 @@
+Version 5.00 - 12 September 2014
+
+- make it compatible with rpm-4.12.0
+- use new recommends tags instead of suggests ones
+- rename "suggests" method as "recommends_nosense"
+- add support for generating @recommends@ lines instead of @suggests@ ones in
+  synthesis
+- rename *suggests* subs as *recommends*
+- rename "no_suggests" option as "no_recommends"
+- {suggested} is renamed {recommended} in state
+
+Version 4.31 - 27 June 2014
+
+- compare(): croak if used on URPM::Package object (mga#12766)
+- enhanced doc
+- kill support for kernel-*source-stripped
+
 Version 4.30 - 1 May 2014
 
 - fix 64k size limit on provides size that break installing 32 bit kernel for

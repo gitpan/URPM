@@ -1,6 +1,5 @@
 package URPM;
 
-# $Id: Build.pm 270395 2010-07-30 00:55:59Z nanardon $
 
 use strict;
 use warnings;
@@ -416,6 +415,7 @@ sub build_hdlist {
 #-   start     : index of first package (defaults to first index of depslist).
 #-   end       : index of last package (defaults to last index of depslist).
 #-   idlist    : id list of rpm to compute (defaults is start .. end)
+#-   recommends: output recommends instead of suggest
 #-   ratio     : compression ratio (default 9).
 #-   filter    : program to filter through (default is 'gzip -$ratio').
 #- returns true on success
@@ -450,7 +450,7 @@ sub build_synthesis {
 	    delete @files{$pkg->provides_nosense};
 	}
 
-	$pkg->build_info($options{synthesis} ? fileno $fh : $options{fd}, join('@', keys %files));
+	$pkg->build_info($options{synthesis} ? fileno $fh : $options{fd}, join('@', keys %files), $options{recommends});
     }
     close $fh; # returns true on success
 }

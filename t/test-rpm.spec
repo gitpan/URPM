@@ -1,4 +1,3 @@
-# $Id: test-rpm.spec 258552 2009-07-22 18:19:56Z peroyvind $
 
 # prevent distepoch & disttag to be added and appended to package filename
 %undefine distepoch

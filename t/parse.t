@@ -1,6 +1,5 @@
 #!/usr/bin/perl
 
-# $Id: parse.t 258553 2009-07-22 18:21:30Z peroyvind $
 
 use strict;
 use warnings;

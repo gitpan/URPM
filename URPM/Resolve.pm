@@ -2,7 +2,6 @@ package URPM;
 #package URPM::Resolve;
 #use URPM;
 
-# $Id: Resolve.pm 270395 2010-07-30 00:55:59Z nanardon $
 
 use strict;
 use warnings;
@@ -407,16 +406,11 @@ sub _find_required_package__kernel_source {
     $choices->[0]->name =~ /^kernel-(.*source-|.*-devel-)/ or return;
 
     grep {
-	if ($_->name =~ /^kernel-.*source-stripped-(.*)/) {
-	    my $version = quotemeta($1);
-	    find {
-		$_->name =~ /-$version$/ && ($_->flag_installed || $_->flag_selected);
-	    } $urpm->packages_providing('kernel');
-	} elsif ($_->name =~ /(kernel-.*)-devel-(.*)/) {
+	if ($_->name =~ /(kernel-.*)-devel-(.*)/) {
 	    my $kernel = "$1-$2";
 	    _is_selected_or_installed($urpm, $db, $kernel);
 	} elsif ($_->name =~ /^kernel-.*source-/) {
-	    #- hopefully we don't have a media with kernel-source but not kernel-source-stripped nor kernel-.*-devel
+	    #- hopefully we don't have a media with kernel-source but not kernel-.*-devel
 	    0;
 	} else {
 	    $urpm->{debug_URPM}("unknown kernel-source package " . $_->fullname) if $urpm->{debug_URPM};
@@ -684,9 +678,9 @@ sub unsatisfied_requires {
 
 =item with_db_unsatisfied_requires($urpm, $db, $state, $name, $do)
 
-This function is "suggests vs requires" safe:
-Traversing DB on 'whatrequires' will give both requires & suggests, but ->unsatisfied_requires()
-will check $p->requires and so filter out suggests
+This function is "recommends vs requires" safe:
+Traversing DB on 'whatrequires' will give both requires & recommends, but ->unsatisfied_requires()
+will check $p->requires and so filter out recommends
 
 =cut
 
@@ -764,7 +758,7 @@ sub backtrack_selected {
 	    foreach (@packages) {
 		    #- avoid dead loop.
 		    exists $state->{backtrack}{selected}{$_->id} and next;
-		    #- a package if found is problably rejected or there is a problem.
+		    #- a package if found is probably rejected or there is a problem.
 		    if ($state->{rejected}{$_->fullname}) {
 			#- keep in mind a backtrack has happening here...
 			exists $dep->{promote} and _add_rejected_backtrack($state, $_, { promote => [ $dep->{promote} ] });
@@ -774,7 +768,7 @@ sub backtrack_selected {
 				_add_rejected_backtrack($state, $_, { conflicts => [ $p ] });
 			}
 			#- backtrack callback should return a strictly positive value if the selection of the new
-			#- package is prefered over the currently selected package.
+			#- package is preferred over the currently selected package.
 			next;
 		    }
 		    $state->{backtrack}{selected}{$_->id} = undef;
@@ -820,7 +814,6 @@ sub backtrack_selected {
 	}
     }
 
-    my @properties;
     if (defined $dep->{psel}) {
 	if ($options{keep}) {
 	    backtrack_selected_psel_keep($urpm, $db, $state, $dep->{psel}, $dep->{keep});
@@ -849,7 +842,6 @@ sub backtrack_selected {
 
     #- some packages may have been removed because of selection of this one.
     #- the rejected flags should have been cleaned by disable_selected above.
-    @properties;
 }
 
 #- side-effects:
@@ -1092,59 +1084,60 @@ The following options are recognized :
 
 =item nodeps :
 
-=item no_suggests: ignore suggests tags
+=item no_recommends: ignore recommends tags
 
 =back
 
-It actually calls resolve_requested__no_suggests() and resolve_requested_suggests().
+It actually calls resolve_requested__no_recommends() and resolve_requested_recommends().
 
 =cut
 
 sub resolve_requested {
     my ($urpm, $db, $state, $requested, %options) = @_;
 
-    my @selected = resolve_requested__no_suggests($urpm, $db, $state, $requested, %options);
+    my @selected = resolve_requested__no_recommends($urpm, $db, $state, $requested, %options);
 
-    if (!$options{no_suggests}) {
-        @selected = resolve_requested_suggests($urpm, $db, $state, \@selected, %options);
+    if (!$options{no_recommends}) {
+        @selected = resolve_requested_recommends($urpm, $db, $state, \@selected, %options);
     }
     @selected;
 }
 
-=item resolve_requested_suggests($urpm, $db, $state, $selected, %options)
+=item resolve_requested_recommends($urpm, $db, $state, $selected, %options)
 
-Select newly suggested package is installed as if (hard) required.
+Select newly recommended package is installed as if (hard) required.
 
 =cut
 
-sub resolve_requested_suggests {
+sub resolve_requested_suggests { goto \&resolve_requested_recommends } #COMPAT
+sub resolve_requested_recommends {
     my ($urpm, $db, $state, $selected, %options) = @_;
 	my @todo = @$selected;
 	while (@todo) {
 	    my $pkg = shift @todo;
-	    my %suggests = map { $_ => 1 } $pkg->suggests or next;
+	    my %recommends = map { $_ => 1 } $pkg->recommends_nosense or next;
 
-	    #- do not install a package that has already been suggested
+	    #- do not install a package that has already been recommended
 	    $db->traverse_tag_find('name', $pkg->name, sub {
 		my ($p) = @_;
-		delete $suggests{$_} foreach $p->suggests;
+		delete $recommends{$_} foreach $p->recommends_nosense;
 	    });
 
 	    # workaround: if you do "urpmi virtual_pkg" and one virtual_pkg is already installed,
 	    # it will ask anyway for the other choices
-	    foreach my $suggest (keys %suggests) {
-		$db->traverse_tag_find('whatprovides', $suggest, sub {
-		    delete $suggests{$suggest};
+	    foreach my $recommend (keys %recommends) {
+		$db->traverse_tag_find('whatprovides', $recommend, sub {
+		    delete $recommends{$recommend};
 		});
 	    }
 
-	    %suggests or next;
+	    %recommends or next;
 
-	    $urpm->{debug_URPM}("requested " . join(', ', keys %suggests) . " suggested by " . $pkg->fullname) if $urpm->{debug_URPM};
+	    $urpm->{debug_URPM}("requested " . join(', ', keys %recommends) . " recommended by " . $pkg->fullname) if $urpm->{debug_URPM};
 	    
-	    my %new_requested = map { $_ => undef } keys %suggests;
-	    my @new_selected = resolve_requested__no_suggests_($urpm, $db, $state, \%new_requested, %options);
-	    $state->{selected}{$_->id}{suggested} = 1 foreach @new_selected;
+	    my %new_requested = map { $_ => undef } keys %recommends;
+	    my @new_selected = resolve_requested__no_recommends_($urpm, $db, $state, \%new_requested, %options);
+	    $state->{selected}{$_->id}{recommended} = 1 foreach @new_selected;
 	    push @$selected, @new_selected;
 	    push @todo, @new_selected;
 	}
@@ -1152,29 +1145,30 @@ sub resolve_requested_suggests {
     @$selected;
 }
 
-=item resolve_requested__no_suggests($urpm, $db, $state, $requested, %options)
+=item resolve_requested__no_recommends($urpm, $db, $state, $requested, %options)
 
-Like resolve_requested() but doesn't handle suggests
+Like resolve_requested() but doesn't handle recommends
 
 =cut
 
-# see resolve_requested above for information about usage (modulo 'no_suggests' option)
+# see resolve_requested above for information about usage (modulo 'no_recommends' option)
 #- side-effects: flag_requested
-#-   + those of resolve_requested__no_suggests_
-sub resolve_requested__no_suggests {
+#-   + those of resolve_requested__no_recommends_
+sub resolve_requested__no_suggests { goto \&resolve_requested__no_recommends } #COMPAT
+sub resolve_requested__no_recommends {
     my ($urpm, $db, $state, $requested, %options) = @_;
 
     foreach (keys %$requested) {
-	#- keep track of requested packages by propating the flag.
+	#- keep track of requested packages by propagating the flag.
 	foreach (find_candidate_packages($urpm, $_)) {
 	    $_->set_flag_requested;
 	}
     }
 
-    resolve_requested__no_suggests_($urpm, $db, $state, $requested, %options);
+    resolve_requested__no_recommends_($urpm, $db, $state, $requested, %options);
 }
 
-# same as resolve_requested__no_suggests, but do not modify requested_flag
+# same as resolve_requested__no_recommends, but do not modify requested_flag
 #-
 #- side-effects: $state->{selected}, flag_required, flag_installed, flag_upgrade
 #-   + those of backtrack_selected     (flag_requested, $state->{rejected}, $state->{whatrequires}, $state->{backtrack})
@@ -1184,7 +1178,8 @@ sub resolve_requested__no_suggests {
 #-   + those of backtrack_selected_psel_keep (flag_requested, $state->{whatrequires})
 #-   + those of _handle_diff_provides  (flag_requested, $state->{rejected}, $state->{whatrequires})
 #-   + those of _no_more_recent_installed_and_providing ($state->{rejected})
-sub resolve_requested__no_suggests_ {
+sub resolve_requested__no_suggests_ { goto \&resolve_requested__no_recommends_ } #COMPAT
+sub resolve_requested__no_recommends_ {
     my ($urpm, $db, $state, $requested, %options) = @_;
 
     my @properties = map {
@@ -1219,7 +1214,7 @@ sub resolve_requested__no_suggests_ {
 		}
 	    }
 
-	    _handle_conflicts_with_selected($urpm, $db, $state, $pkg, $dep, \@properties, \@diff_provides, %options) or next;
+	    _handle_conflicts_with_selected($urpm, $db, $state, $pkg, $dep, \@diff_provides, %options) or next;
 
 	    $urpm->{debug_URPM}("selecting " . $pkg->fullname) if $urpm->{debug_URPM};
 
@@ -1237,7 +1232,7 @@ sub resolve_requested__no_suggests_ {
 	    $pkg->set_flag_required;
 
 	    #- check if the package is not already installed before trying to use it, compute
-	    #- obsoleted packages too. This is valable only for non source packages.
+	    #- obsoleted packages too. This is valid only for non source packages.
 	    my %diff_provides_h;
 	    if ($pkg->arch ne 'src' && !$pkg->flag_disable_obsolete) {
 		_unselect_package_deprecated_by($urpm, $db, $state, \%diff_provides_h, $pkg);
@@ -1305,7 +1300,7 @@ sub resolve_requested__no_suggests_ {
 #-   + those of _remove_all_rejected_from ($state->{rejected})
 #-   + those of backtrack_selected ($state->{backtrack}, $state->{rejected}, $state->{selected}, $state->{whatrequires}, flag_requested, flag_required)
 sub _handle_conflicts_with_selected {
-    my ($urpm, $db, $state, $pkg, $dep, $properties, $diff_provides, %options) = @_;
+    my ($urpm, $db, $state, $pkg, $dep, $diff_provides, %options) = @_;
     foreach ($pkg->conflicts) {
 	if (my $n = property2name($_)) {
 	    foreach my $p ($urpm->packages_providing($n)) {
@@ -1315,7 +1310,7 @@ sub _handle_conflicts_with_selected {
 		    $urpm->{debug_URPM}($pkg->fullname . " conflicts with already selected package " . $p->fullname) if $urpm->{debug_URPM};
 		    _remove_all_rejected_from($state, $pkg);
 		    _set_rejected_from($state, $pkg, $p);
-		    unshift @$properties, backtrack_selected($urpm, $db, $state, $dep, $diff_provides, %options);
+		    backtrack_selected($urpm, $db, $state, $dep, $diff_provides, %options);
 		    return;
 		}
 		_set_rejected_from($state, $p, $pkg);
@@ -1342,7 +1337,7 @@ sub _handle_conflicts {
 		if ($keep) {
 		    push @$keep, scalar $p->fullname;
 		} else {
-		    #- all these package should be removed.
+		    #- all these packages should be removed.
 		    set_rejected_and_compute_diff_provides($urpm, $state, $diff_provides_h, {
 				      rejected_pkg => $p, removed => 1,
 				      from => $pkg,
@@ -2243,7 +2238,7 @@ sub _sort_by_dependencies__add_obsolete_edges {
 #- side-effects: none
 sub sort_by_dependencies {
     my ($urpm, $state, @list_unsorted) = @_;
-    @list_unsorted = sort { $a <=> $b } @list_unsorted; # sort by ids to be more reproductable
+    @list_unsorted = sort { $a <=> $b } @list_unsorted; # sort by ids to be more reproducible
     $urpm->{debug_URPM}("getting graph of dependencies for sorting") if $urpm->{debug_URPM};
     my $edges = _sort_by_dependencies_get_graph($urpm, $state, \@list_unsorted);
     my $requires = reverse_multi_hash($edges);
@@ -2304,7 +2299,7 @@ sub build_transaction_set {
 	    }
 	    my %requested = map { $_ => undef } @ids;
 
-		resolve_requested__no_suggests_($urpm,
+		resolve_requested__no_recommends_($urpm,
 		    $db, $state->{transaction_state} ||= {},
 		    \%requested,
 		    defined $options{start} ? (start => $options{start}) : @{[]},
