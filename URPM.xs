@@ -121,8 +121,8 @@ static ssize_t write_nocheck(int fd, const void *buf, size_t count) {
 }
 static int rpmError_callback_data;
 
-static int rpmError_callback() {
-  write_nocheck(rpmError_callback_data, rpmlogMessage(), strlen(rpmlogMessage()));
+static int rpmError_callback(rpmlogRec rec, rpmlogCallbackData data) {
+  write_nocheck(rpmError_callback_data, rpmlogRecMessage(rec), strlen(rpmlogRecMessage(rec)));
   return RPMLOG_DEFAULT;
 }
 

@@ -1,3 +1,7 @@
+Version 5.01 - 23 October 2014
+
+- fix crashing in ptread when using log callback with rpm-4.12
+
 Version 5.00 - 12 September 2014
 
 - make it compatible with rpm-4.12.0
