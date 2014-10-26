@@ -1842,6 +1842,7 @@ Pkg_obsoletes(pkg)
       conflicts = 1
       provides  = 2
       requires  = 3
+      recommends= 4
   PPCODE:
   PUTBACK;
   rpmTag tag, flags, tag_version;
@@ -1850,6 +1851,7 @@ Pkg_obsoletes(pkg)
   case 1:  tag = RPMTAG_CONFLICTNAME; s = pkg->conflicts; flags = RPMTAG_CONFLICTFLAGS; tag_version = RPMTAG_CONFLICTVERSION; break;
   case 2:  tag = RPMTAG_PROVIDENAME;  s = pkg->provides;  flags = RPMTAG_PROVIDEFLAGS;  tag_version = RPMTAG_PROVIDEVERSION;  break;
   case 3:  tag = RPMTAG_REQUIRENAME;  s = pkg->requires;  flags = RPMTAG_REQUIREFLAGS;  tag_version = RPMTAG_REQUIREVERSION;  break;
+  case 4:  tag = RPMTAG_RECOMMENDNAME;s = pkg->recommends;flags = RPMTAG_RECOMMENDFLAGS;tag_version = RPMTAG_RECOMMENDVERSION;break;
   default: tag = RPMTAG_OBSOLETENAME; s = pkg->obsoletes; flags = RPMTAG_OBSOLETEFLAGS; tag_version = RPMTAG_OBSOLETEVERSION; break;
   }
   return_list_str(s, pkg->h, tag, flags, tag_version, callback_list_str_xpush, NULL);

@@ -1,6 +1,10 @@
+Version 5.02 - 26 October 2014
+
+- add >recommends method (mga#14376)
+
 Version 5.01 - 23 October 2014
 
-- fix crashing in ptread when using log callback with rpm-4.12
+- fix crashing in pthread when using log callback with rpm-4.12 (mga#14172)
 
 Version 5.00 - 12 September 2014
 
