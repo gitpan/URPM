@@ -1,3 +1,8 @@
+Version 5.03 - 14 November 2014
+
+- add a missing PUTBACK in traverse_tag_find()
+- handle non numeric returns for traverse_tag_find callback (warning fix)
+
 Version 5.02 - 26 October 2014
 
 - add >recommends method (mga#14376)

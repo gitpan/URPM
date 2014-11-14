@@ -2447,8 +2447,12 @@ Db_traverse_tag_find(db,tag,name,callback)
       int count = _run_cb_while_traversing(callback, header, 0);
 
       SPAGAIN;
-      if (count == 1 && POPi) {
-	found = 1;
+      if (count == 1) {
+	SV* ret = POPs;
+	found = SvTRUE(ret);
+      }
+      PUTBACK;
+      if (found) {
 	break;
       }
   }
